@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ 跨区电力交易仪表盘</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif;
+            background: #f5f7fb;
+            color: #1e293b;
+            padding: 20px;
+        }
+        .container { max-width: 1440px; margin: 0 auto; }
+
+        .header {
+            display: flex; flex-wrap: wrap; align-items: center;
+            justify-content: space-between; gap: 16px;
+            background: #ffffff; padding: 18px 28px; border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 12px;
+        }
+        .header-left { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .header-left h1 { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .tabs { display: flex; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 12px; }
+        .tab-btn {
+            padding: 8px 20px; border: none; border-radius: 10px;
+            background: transparent; font-weight: 600; font-size: 15px;
+            color: #64748b; cursor: pointer; transition: all 0.2s;
+        }
+        .tab-btn.active { background: #ffffff; color: #0f172a; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .tab-btn:hover:not(.active) { background: #e2e8f0; }
+
+        /* ====== 跳转按钮样式：.ext-btn（与区域 tab 同样大小） ====== */
+        .ext-btn {
+            padding: 8px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 10px;
+            background: #8b5cf6;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 4px rgba(139, 92, 246, 0.3);
+            font-family: inherit;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .ext-btn:hover {
+            background: #7c3aed;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.45);
+        }
+        .ext-btn:active {
+            transform: scale(0.98);
+        }
+        .ext-btn .icon {
+            font-size: 16px;
+        }
+        /* 水情按钮 */
+        .ext-btn.water-btn {
+            background: #0ea5e9;
+            box-shadow: 0 1px 4px rgba(14, 165, 233, 0.3);
+        }
+        .ext-btn.water-btn:hover {
+            background: #0284c7;
+            box-shadow: 0 2px 8px rgba(14, 165, 233, 0.45);
+        }
+
+        .filter-bar {
+            background: #ffffff; padding: 12px 28px; border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 12px;
+            display: flex; flex-wrap: wrap; align-items: center; gap: 24px;
+        }
+        .filter-bar label { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .filter-bar select {
+            padding: 6px 12px; border-radius: 8px; border: 1px solid #e2e8f0;
+            background: #f8fafc; font-size: 14px; min-width: 140px;
+        }
+
+        .data-source-area {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;
+            background: #f1f5f9; border-radius: 12px; padding: 12px 18px; margin-bottom: 20px;
+        }
+        .data-source-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .data-source-item .label { font-weight: 600; font-size: 14px; color: #334155; }
+        .data-source-item input[type="file"] { max-width: 160px; }
+        .data-source-item .file-name {
+            font-size: 13px; color: #64748b; max-width: 120px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .btn-sm {
+            padding: 4px 14px; font-size: 13px; border-radius: 6px;
+            border: 1px solid #e2e8f0; background: #fff; cursor: pointer;
+            transition: background 0.2s; white-space: nowrap;
+        }
+        .btn-sm:hover { background: #f1f5f9; }
+        .btn-primary { background: #3b82f6; color: #fff; border: none; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-success { background: #22c55e; color: #fff; border: none; }
+        .btn-success:hover { background: #16a34a; }
+        .status-msg { font-size: 14px; color: #334155; margin-left: 8px; }
+
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .kpi-card {
+            background: #ffffff; border-radius: 14px; padding: 16px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 4px solid #3b82f6;
+        }
+        .kpi-card .label { font-size: 13px; font-weight: 500; color: #64748b; text-transform: uppercase; }
+        .kpi-card .value { font-size: 28px; font-weight: 700; color: #0f172a; margin-top: 4px; }
+        .kpi-card .sub { font-size: 13px; color: #94a3b8; }
+        .kpi-card.net-buy { border-left-color: #22c55e; }
+        .kpi-card.net-sell { border-left-color: #ef4444; }
+
+        .chart-section {
+            background: #ffffff; border-radius: 16px; padding: 20px 20px 12px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 24px;
+        }
+        .chart-section h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+        .chart-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .chart-grid-4 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .chart-box { min-height: 320px; }
+        .chart-box-sm { min-height: 280px; }
+        .chart-box-xs { min-height: 220px; }
+        .table-wrap { overflow-x: auto; margin-top: 8px; }
+        .table-wrap table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .table-wrap th { background: #f1f5f9; padding: 10px 14px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+        .table-wrap td { padding: 8px 14px; border-bottom: 1px solid #f1f5f9; }
+        .table-wrap .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .btn-download {
+            display: inline-block; margin-top: 12px; padding: 8px 24px;
+            background: #3b82f6; color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-download:hover { background: #2563eb; }
+        .flex-between { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+        .text-muted { color: #94a3b8; text-align: center; padding: 20px 0; }
+        .badge {
+            font-size: 13px; font-weight: 400; color: #64748b;
+            background: #f1f5f9; padding: 2px 12px; border-radius: 20px; margin-left: 8px;
+        }
+        @media (max-width: 900px) {
+            .chart-grid-2, .chart-grid-4 { grid-template-columns: 1fr; }
+            .header { flex-direction: column; align-items: stretch; }
+            .header-left { flex-direction: column; align-items: stretch; }
+            .filter-bar { flex-direction: column; align-items: stretch; gap: 12px; }
+            .data-source-area { flex-direction: column; align-items: stretch; }
+            .data-source-item { justify-content: space-between; }
+            .header-right { width: 100%; flex-direction: column; gap: 10px; }
+            .ext-btn { width: 100%; justify-content: center; }
+        }
+        .toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: #0f172a; color: #fff; padding: 12px 28px; border-radius: 12px;
+            font-size: 14px; z-index: 999; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+        }
+        .toast.show { opacity: 1; pointer-events: auto; }
+        .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+
+        <div class="header">
+            <div class="header-left">
+                <h1>⚡ 跨区电力交易仪表盘</h1>
+                <div class="tabs">
+                    <button class="tab-btn active" data-region="changzhou">🌉 长三角</button>
+                    <button class="tab-btn" data-region="sichuan">🏔️ 四川</button>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="ext-btn" id="gotoWeatherBtn">
+                    <span class="icon">🌤️</span> 四川天气及负荷预测
+                </button>
+                <!-- ====== 新增：水电站水情蓄能跳转按钮 ====== -->
+                <a class="ext-btn water-btn" id="gotoWaterBtn"
+                   href="https://liyanage-yy.github.io/shuiqing-dashboard/"
+                   target="_blank" rel="noopener noreferrer">
+                    <span class="icon">💧</span> 水电站水情蓄能
+                </a>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <label>
+                📅 日期
+                <select id="dateSelector" disabled><option value="">—</option></select>
+            </label>
+            <label>
+                📊 市场
+                <select id="marketSelector">
+                    <option value="汇总">汇总（日前+日内）</option>
+                    <option value="日前">日前</option>
+                    <option value="日内">日内</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="data-source-area">
+            <div class="data-source-item">
+                <span class="label">🌉 长三角</span>
+                <input type="file" id="fileChangzhou" accept=".xlsx,.xls">
+                <span class="file-name" id="fileNameChangzhou">未选择</span>
+                <button class="btn-sm btn-primary" id="loadDefaultChangzhou">📊 加载默认</button>
+                <span class="status-msg" id="statusChangzhou">⏳ 未加载</span>
+            </div>
+            <div class="data-source-item">
+                <span class="label">🏔️ 四川</span>
+                <input type="file" id="fileSichuan" accept=".xlsx,.xls">
+                <span class="file-name" id="fileNameSichuan">未选择</span>
+                <button class="btn-sm btn-success" id="loadDefaultSichuan">📊 加载默认</button>
+                <span class="status-msg" id="statusSichuan">⏳ 未加载</span>
+            </div>
+            <div class="status-msg" id="globalStatus" style="font-weight:500;">请加载任一数据</div>
+        </div>
+
+        <div id="panel-main">
+            <div class="kpi-grid" id="kpiGridMain">
+                <div class="kpi-card"><div class="label">总购电量</div><div class="value" id="kpiBuy">—</div><div class="sub">MWh</div></div>
+                <div class="kpi-card"><div class="label">总售电量</div><div class="value" id="kpiSell">—</div><div class="sub">MWh</div></div>
+                <div class="kpi-card"><div class="label">购方综合均价</div><div class="value" id="kpiAvgBuy">—</div><div class="sub">元/MWh</div></div>
+                <div class="kpi-card"><div class="label">售方综合均价</div><div class="value" id="kpiAvgSell">—</div><div class="sub">元/MWh</div></div>
+                <div class="kpi-card" id="kpiNetCard"><div class="label">净买入</div><div class="value" id="kpiNet">—</div><div class="sub">MWh</div></div>
+            </div>
+
+            <div class="chart-section">
+                <h2>⏰ <span id="titleMain">四川主网</span> 分时段量价 <span class="badge" id="badgeMain"></span></h2>
+                <div class="chart-box" id="chartMain"></div>
+            </div>
+            <div class="chart-section">
+                <h2>⏰ <span id="titlePanxi">四川攀西</span> 分时段量价 <span class="badge" id="badgePanxi"></span></h2>
+                <div class="chart-box" id="chartPanxi"></div>
+            </div>
+
+            <div class="chart-section">
+                <h2>📈 最新5日分时段趋势</h2>
+                <div class="chart-grid-4" id="trendGrid">
+                    <div class="chart-box-xs" id="trend1"></div>
+                    <div class="chart-box-xs" id="trend2"></div>
+                    <div class="chart-box-xs" id="trend3"></div>
+                    <div class="chart-box-xs" id="trend4"></div>
+                </div>
+            </div>
+
+            <div class="chart-grid-2">
+                <div class="chart-section"><h2>📊 各地区买卖总量 <span class="badge" id="badgeBar"></span></h2><div class="chart-box-sm" id="chartBar"></div></div>
+                <div class="chart-section"><h2>💰 买卖价格对比 <span class="badge" id="badgeScatter"></span></h2><div class="chart-box-sm" id="chartScatter"></div></div>
+            </div>
+
+            <div class="chart-section">
+                <h2>📈 净买入倾向 <span class="badge" id="badgeNet"></span></h2>
+                <div class="chart-box" id="chartNet" style="min-height:420px;"></div>
+            </div>
+
+            <div class="chart-grid-2">
+                <div class="chart-section"><h2>📉 购电趋势（最新5天）</h2><div class="chart-box-sm" id="chartBuyTrend" style="min-height:420px;"></div></div>
+                <div class="chart-section"><h2>📉 售电趋势（最新5天）</h2><div class="chart-box-sm" id="chartSellTrend" style="min-height:420px;"></div></div>
+            </div>
+
+            <div class="chart-section">
+                <h2>📊 净买入趋势（最新5天）</h2>
+                <div class="chart-box-sm" id="chartNetTrend" style="min-height:420px;"></div>
+            </div>
+
+            <div class="chart-grid-2">
+                <div class="chart-section"><h2>📊 购方均价趋势（最新5天）</h2><div class="chart-box-sm" id="chartBuyPriceTrend" style="min-height:420px;"></div></div>
+                <div class="chart-section"><h2>📊 售方均价趋势（最新5天）</h2><div class="chart-box-sm" id="chartSellPriceTrend" style="min-height:420px;"></div></div>
+            </div>
+
+            <div class="chart-section">
+                <div class="flex-between">
+                    <h2>📋 详细数据 <span class="badge" id="badgeTable"></span></h2>
+                    <button class="btn-download" id="downloadBtn">📥 下载 CSV</button>
+                </div>
+                <div class="table-wrap" id="tableWrap"><p class="text-muted">请加载数据</p></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ================================================================
+        // 1. 核心数据处理函数
+        // ================================================================
+        function cleanColumns(df, suffix) {
+            const newCols = {};
+            for (let col of Object.keys(df[0] || {})) {
+                if (col.includes('出清电量') || col.includes('出清电价')) {
+                    const newName = col.replace(`（${suffix}）`, '');
+                    newCols[col] = newName;
+                } else {
+                    newCols[col] = col;
+                }
+            }
+            return df.map(row => {
+                const newRow = {};
+                for (let [old, newName] of Object.entries(newCols)) {
+                    newRow[newName] = row[old];
+                }
+                return newRow;
+            });
+        }
+
+        function normalizeDateTime(df) {
+            return df.map(row => {
+                const r = { ...row };
+                if (r['日期']) {
+                    let d = r['日期'];
+                    if (typeof d === 'number') {
+                        const dateObj = new Date((d - 25569) * 86400 * 1000);
+                        r['日期'] = dateObj.toISOString().slice(0, 10);
+                    } else if (typeof d === 'string') {
+                        if (d.includes(' ')) {
+                            r['日期'] = d.slice(0, 10);
+                        } else {
+                            const parsed = new Date(d);
+                            if (!isNaN(parsed)) {
+                                r['日期'] = parsed.toISOString().slice(0, 10);
+                            } else {
+                                r['日期'] = d;
+                            }
+                        }
+                    } else {
+                        r['日期'] = String(d);
+                    }
+                }
+                return r;
+            });
+        }
+
+        function mergeDA_RT(dfDA, dfRT) {
+            const daClean = cleanColumns(dfDA, '日前');
+            const rtClean = cleanColumns(dfRT, '日内');
+            const daNorm = normalizeDateTime(daClean);
+            const rtNorm = normalizeDateTime(rtClean);
+
+            const firstRow = daNorm.length > 0 ? daNorm[0] : (rtNorm.length > 0 ? rtNorm[0] : {});
+            const baseEnergyCols = [];
+            for (let col of Object.keys(firstRow)) {
+                if (col.includes('出清电量') && !col.endsWith('_da') && !col.endsWith('_rt')) {
+                    baseEnergyCols.push(col);
+                }
+            }
+            if (daNorm.length === 0 && rtNorm.length === 0) return [];
+
+            const mapDA = new Map();
+            daNorm.forEach(row => mapDA.set(row['日期'] + '|' + row['时刻'], row));
+            const mapRT = new Map();
+            rtNorm.forEach(row => mapRT.set(row['日期'] + '|' + row['时刻'], row));
+
+            const allKeys = new Set([...mapDA.keys(), ...mapRT.keys()]);
+            const merged = [];
+            allKeys.forEach(key => {
+                const [date, time] = key.split('|');
+                const rowDA = mapDA.get(key) || {};
+                const rowRT = mapRT.get(key) || {};
+                const combined = { '日期': date, '时刻': time };
+                for (let col of Object.keys(rowDA)) {
+                    if (col !== '日期' && col !== '时刻') combined[col + '_da'] = rowDA[col];
+                }
+                for (let col of Object.keys(rowRT)) {
+                    if (col !== '日期' && col !== '时刻') combined[col + '_rt'] = rowRT[col];
+                }
+                merged.push(combined);
+            });
+
+            const allCols = new Set();
+            merged.forEach(row => Object.keys(row).forEach(col => allCols.add(col)));
+            const finalMerged = merged.map(row => {
+                const newRow = { ...row };
+                allCols.forEach(col => {
+                    if (!(col in newRow)) newRow[col] = 0;
+                    if (newRow[col] === undefined || newRow[col] === null) newRow[col] = 0;
+                });
+                return newRow;
+            });
+
+            return finalMerged.map(row => {
+                const newRow = { '日期': row['日期'], '时刻': row['时刻'] };
+                baseEnergyCols.forEach(col => {
+                    const priceCol = col.replace('电量', '电价');
+                    const eDA = row[col + '_da'] || 0;
+                    const eRT = row[col + '_rt'] || 0;
+                    const pDA = row[priceCol + '_da'] || 0;
+                    const pRT = row[priceCol + '_rt'] || 0;
+                    const totalE = eDA + eRT;
+                    const totalFee = eDA * pDA + eRT * pRT;
+                    newRow[col] = totalE;
+                    newRow[priceCol] = totalE > 0 ? totalFee / totalE : 0;
+                });
+                return newRow;
+            });
+        }
+
+        function dailyRegionSummary(data) {
+            const dates = [...new Set(data.map(r => r['日期']))].sort();
+            const regions = [];
+            const cols = Object.keys(data[0] || {});
+            cols.filter(c => c.includes('出清电量')).forEach(c => {
+                const parts = c.split('-');
+                if (parts.length > 1) {
+                    const region = parts[1].replace('出清电量', '');
+                    if (!regions.includes(region)) regions.push(region);
+                }
+            });
+
+            const buyRecords = [], sellRecords = [];
+            dates.forEach(date => {
+                const dayData = data.filter(r => r['日期'] === date);
+                regions.forEach(region => {
+                    const buyE = `购方-${region}出清电量`, buyP = `购方-${region}出清电价`;
+                    let bE = 0, bF = 0;
+                    dayData.forEach(row => {
+                        const e = row[buyE] || 0, p = row[buyP] || 0;
+                        if (e > 0 && p > 0) { bE += e; bF += e * p; }
+                    });
+                    buyRecords.push({ date, region, totalEnergy: bE, weightedPrice: bE > 0 ? bF / bE : 0 });
+
+                    const sellE = `售方-${region}出清电量`, sellP = `售方-${region}出清电价`;
+                    let sE = 0, sF = 0;
+                    dayData.forEach(row => {
+                        const e = row[sellE] || 0, p = row[sellP] || 0;
+                        if (e > 0 && p > 0) { sE += e; sF += e * p; }
+                    });
+                    sellRecords.push({ date, region, totalEnergy: sE, weightedPrice: sE > 0 ? sF / sE : 0 });
+                });
+            });
+            return { buy: buyRecords, sell: sellRecords };
+        }
+
+        // ================================================================
+        // 2. 图表渲染函数
+        // ================================================================
+        function makeDualAxisFig(times, buyE, sellE, buyP, sellP, region, date) {
+            return {
+                data: [
+                    { x: times, y: buyE, name: '购方电量', type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y' },
+                    { x: times, y: sellE, name: '售方电量', type: 'bar', marker: { color: '#d62728' }, yaxis: 'y' },
+                    { x: times, y: buyP, name: '购方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4' }, marker: { color: '#1f77b4' }, yaxis: 'y2' },
+                    { x: times, y: sellP, name: '售方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728' }, marker: { color: '#d62728' }, yaxis: 'y2' }
+                ],
+                layout: {
+                    title: `${region} - ${date}`,
+                    xaxis: { title: '时刻', tickangle: -45 },
+                    yaxis: { title: '电量 (MWh)', rangemode: 'tozero', side: 'left' },
+                    yaxis2: { title: '电价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
+                    legend: { orientation: 'h', y: 1.08 },
+                    height: 380,
+                    margin: { l: 60, r: 60, t: 50, b: 60 },
+                    barmode: 'group'
+                }
+            };
+        }
+
+        function renderScatterChart(dayMerged, date) {
+            const buyData = [], sellData = [];
+            dayMerged.forEach(r => {
+                if (r.buyPrice > 0) buyData.push({ region: r.region, price: r.buyPrice, energy: r.buyEnergy });
+                if (r.sellPrice > 0) sellData.push({ region: r.region, price: r.sellPrice, energy: r.sellEnergy });
+            });
+            if (buyData.length === 0 && sellData.length === 0) {
+                Plotly.react(document.getElementById('chartScatter'), [], { height: 360, annotations: [{ text: '无有效价格数据', showarrow: false }] });
+                return;
+            }
+            const traces = [];
+            if (buyData.length > 0) traces.push({
+                x: buyData.map(r => r.region), y: buyData.map(r => r.price),
+                mode: 'markers', name: '购方',
+                marker: { size: buyData.map(r => Math.max(8, Math.min(55, Math.log(r.energy + 1) * 6))), color: '#1f77b4', sizemode: 'diameter', sizeref: 2 },
+                text: buyData.map(r => `购方 ${r.region}<br>电量: ${r.energy.toFixed(1)} MWh<br>均价: ${r.price.toFixed(2)} 元/MWh`),
+                hoverinfo: 'text', type: 'scatter'
+            });
+            if (sellData.length > 0) traces.push({
+                x: sellData.map(r => r.region), y: sellData.map(r => r.price),
+                mode: 'markers', name: '售方',
+                marker: { size: sellData.map(r => Math.max(8, Math.min(55, Math.log(r.energy + 1) * 6))), color: '#d62728', sizemode: 'diameter', sizeref: 2 },
+                text: sellData.map(r => `售方 ${r.region}<br>电量: ${r.energy.toFixed(1)} MWh<br>均价: ${r.price.toFixed(2)} 元/MWh`),
+                hoverinfo: 'text', type: 'scatter'
+            });
+            const layout = {
+                title: `${date}（气泡大小=电量）`, xaxis: { title: '地区' },
+                yaxis: { title: '均价 (元/MWh)', rangemode: 'tozero' }, height: 360,
+                legend: { orientation: 'v', x: 1.02, y: 1, xanchor: 'left' },
+                margin: { l: 60, r: 140, t: 40, b: 60 }
+            };
+            Plotly.react(document.getElementById('chartScatter'), traces, layout);
+        }
+
+        function renderBarChart(dayMerged, date) {
+            if (dayMerged.length === 0) {
+                Plotly.react(document.getElementById('chartBar'), [], { height: 360, annotations: [{ text: '无数据', showarrow: false }] });
+                return;
+            }
+            const regions = dayMerged.map(r => r.region);
+            const buyVals = dayMerged.map(r => r.buyEnergy);
+            const sellVals = dayMerged.map(r => r.sellEnergy);
+            const t1 = { x: regions, y: buyVals, name: '购方', type: 'bar', marker: { color: '#1f77b4' } };
+            const t2 = { x: regions, y: sellVals, name: '售方', type: 'bar', marker: { color: '#d62728' } };
+            const layout = {
+                title: `${date}`, xaxis: { title: '地区' }, yaxis: { title: '电量 (MWh)', rangemode: 'tozero' },
+                height: 360, barmode: 'group',
+                legend: { orientation: 'v', x: 1.02, y: 1, xanchor: 'left' },
+                margin: { l: 60, r: 140, t: 40, b: 60 }
+            };
+            Plotly.react(document.getElementById('chartBar'), [t1, t2], layout);
+        }
+
+        function renderNetChart(dayMerged, date) {
+            if (dayMerged.length === 0) {
+                Plotly.react(document.getElementById('chartNet'), [], { height: 500, annotations: [{ text: '无数据', showarrow: false }] });
+                return;
+            }
+            const sorted = [...dayMerged].sort((a, b) => a.net - b.net);
+            const regions = sorted.map(r => r.region);
+            const nets = sorted.map(r => r.net);
+            const colors = nets.map(v => v < 0 ? '#ef4444' : '#22c55e');
+            const trace = { x: regions, y: nets, type: 'bar', marker: { color: colors }, text: nets.map(v => v.toFixed(0)), textposition: 'outside' };
+            const layout = {
+                title: `${date}（正=净购入，负=净售出）`, xaxis: { title: '地区' },
+                yaxis: { title: '净买入 (MWh)', rangemode: 'tozero' }, height: 500, showlegend: false
+            };
+            Plotly.react(document.getElementById('chartNet'), [trace], layout);
+        }
+
+        function renderBuyPriceTrend(latestDates) {
+            const data = buyRecords.filter(r => latestDates.includes(r.date) && r.weightedPrice > 0);
+            const regions = [...new Set(data.map(r => r.region))];
+            const traces = regions.map(region => {
+                const pts = data.filter(r => r.region === region).sort((a, b) => a.date.localeCompare(b.date));
+                return { x: pts.map(r => r.date), y: pts.map(r => r.weightedPrice), name: region, mode: 'lines+markers', type: 'scatter' };
+            });
+            if (traces.length === 0) {
+                Plotly.react(document.getElementById('chartBuyPriceTrend'), [], { height: 400, annotations: [{ text: '无有效购方均价数据', showarrow: false }] });
+                return;
+            }
+            const layout = {
+                xaxis: { title: '日期', tickformat: '%Y-%m-%d' },
+                yaxis: { title: '购方均价 (元/MWh)', rangemode: 'tozero' }, height: 400,
+                legend: { orientation: 'v', x: 1.02, y: 1, xanchor: 'left' },
+                margin: { l: 60, r: 140, t: 40, b: 60 }
+            };
+            Plotly.react(document.getElementById('chartBuyPriceTrend'), traces, layout);
+        }
+
+        function renderSellPriceTrend(latestDates) {
+            const data = sellRecords.filter(r => latestDates.includes(r.date) && r.weightedPrice > 0);
+            const regions = [...new Set(data.map(r => r.region))];
+            const traces = regions.map(region => {
+                const pts = data.filter(r => r.region === region).sort((a, b) => a.date.localeCompare(b.date));
+                return { x: pts.map(r => r.date), y: pts.map(r => r.weightedPrice), name: region, mode: 'lines+markers', type: 'scatter' };
+            });
+            if (traces.length === 0) {
+                Plotly.react(document.getElementById('chartSellPriceTrend'), [], { height: 400, annotations: [{ text: '无有效售方均价数据', showarrow: false }] });
+                return;
+            }
+            const layout = {
+                xaxis: { title: '日期', tickformat: '%Y-%m-%d' },
+                yaxis: { title: '售方均价 (元/MWh)', rangemode: 'tozero' }, height: 400,
+                legend: { orientation: 'v', x: 1.02, y: 1, xanchor: 'left' },
+                margin: { l: 60, r: 140, t: 40, b: 60 }
+            };
+            Plotly.react(document.getElementById('chartSellPriceTrend'), traces, layout);
+        }
+
+        function renderBuySellTrend(latestDates) {
+            const buyData = buyRecords.filter(r => latestDates.includes(r.date));
+            const regions = [...new Set(buyData.map(r => r.region))];
+            const tracesBuy = regions.map(region => {
+                const pts = buyData.filter(r => r.region === region).sort((a, b) => a.date.localeCompare(b.date));
+                return { x: pts.map(r => r.date), y: pts.map(r => r.totalEnergy), name: region, mode: 'lines+markers', type: 'scatter' };
+            });
+            const layoutBuy = {
+                xaxis: { title: '日期', tickformat: '%Y-%m-%d' },
+                yaxis: { title: '购电量 (MWh)', rangemode: 'tozero' }, height: 400,
+                legend: { orientation: 'v', x: 1.02, y: 1, xanchor: 'left' },
+                margin: { l: 60, r: 140, t: 40, b: 60 }
+            };
+            Plotly.react(document.getElementById('chartBuyTrend'), tracesBuy, layoutBuy);
+
+            const sellData = sellRecords.filter(r => latestDates.includes(r.date));
+            const tracesSell = regions.map(region => {
+                const pts = sellData.filter(r => r.region === region).sort((a, b) => a.date.localeCompare(b.date));
+                return { x: pts.map(r => r.date), y: pts.map(r => r.totalEnergy), name: region, mode: 'lines+markers', type: 'scatter' };
+            });
+            const layoutSell = {
+                xaxis: { title: '日期', tickformat: '%Y-%m-%d' },
+                yaxis: { title: '售电量 (MWh)', rangemode: 'tozero' }, height: 400,
+                legend: { orientation: 'v', x: 1.02, y: 1, xanchor: 'left' },
+                margin: { l: 60, r: 140, t: 40, b: 60 }
+            };
+            Plotly.react(document.getElementById('chartSellTrend'), tracesSell, layoutSell);
+        }
+
+        function renderNetTrend(latestDates) {
+            const data = mergedRecords.filter(r => latestDates.includes(r.date));
+            if (data.length === 0 || latestDates.length === 0) {
+                Plotly.react(document.getElementById('chartNetTrend'), [], { height: 400, annotations: [{ text: '无数据', showarrow: false }] });
+                return;
+            }
+            const regions = [...new Set(data.map(r => r.region))].sort();
+            const sortedDates = latestDates.slice().sort();
+            const traces = sortedDates.map(date => {
+                const vals = regions.map(region => {
+                    const rec = data.find(r => r.date === date && r.region === region);
+                    return rec ? rec.net : 0;
+                });
+                return { x: regions, y: vals, name: date, type: 'bar', text: vals.map(v => v.toFixed(1)), textposition: 'outside' };
+            });
+            const layout = {
+                title: '各地区净买入（柱状，日期分组）', xaxis: { title: '地区' },
+                yaxis: { title: '净买入 (MWh)', rangemode: 'tozero' }, barmode: 'group', height: 400,
+                legend: { orientation: 'v', x: 1.02, y: 1, xanchor: 'left' },
+                margin: { l: 60, r: 140, t: 40, b: 60 }
+            };
+            Plotly.react(document.getElementById('chartNetTrend'), traces, layout);
+        }
+
+        function renderTrends(selectedDate) {
+            const latest5 = allDates.slice(-5);
+            const regions = ['四川主网', '四川攀西'];
+            const directions = ['购方', '售方'];
+            const combos = [];
+            regions.forEach(r => directions.forEach(d => combos.push({ region: r, direction: d })));
+
+            const plots = combos.map(({ region, direction }) => {
+                const col = `${direction}-${region}出清电量`;
+                const traces = latest5.map(date => {
+                    const dayData = rawData.filter(r => r['日期'] === date).sort((a, b) => a['时刻'].localeCompare(b['时刻']));
+                    return {
+                        x: dayData.map(r => r['时刻']),
+                        y: dayData.map(r => r[col] || 0),
+                        mode: 'lines+markers', name: date, type: 'scatter'
+                    };
+                });
+                return {
+                    traces: traces,
+                    layout: {
+                        title: `${region} - ${direction}`,
+                        xaxis: { title: '时刻', tickangle: -30 },
+                        yaxis: { title: '电量 (MWh)', rangemode: 'tozero' }, height: 240,
+                        margin: { l: 40, r: 20, t: 60, b: 40 },
+                        legend: { orientation: 'h', y: 1.15, font: { size: 10 } },
+                        showlegend: true
+                    }
+                };
+            });
+
+            const trendEls = ['trend1', 'trend2', 'trend3', 'trend4'].map(id => document.getElementById(id));
+            for (let i = 0; i < 4; i++) {
+                if (i < plots.length) Plotly.react(trendEls[i], plots[i].traces, plots[i].layout);
+                else Plotly.react(trendEls[i], [], { height: 240, annotations: [{ text: '无数据', showarrow: false }] });
+            }
+        }
+
+        function renderTable(dayMerged, date) {
+            if (dayMerged.length === 0) {
+                document.getElementById('tableWrap').innerHTML = '<p class="text-muted">该日期无交易数据</p>';
+                return;
+            }
+            let html = `<table><thead><tr><th>地区</th><th class="num">购方总电量 (MWh)</th><th class="num">购方均价 (元/MWh)</th><th class="num">售方总电量 (MWh)</th><th class="num">售方均价 (元/MWh)</th><th class="num">净买入 (MWh)</th></tr></thead><tbody>`;
+            dayMerged.forEach(r => {
+                html += `<tr><td>${r.region}</td><td class="num">${r.buyEnergy.toFixed(1)}</td><td class="num">${r.buyPrice.toFixed(2)}</td><td class="num">${r.sellEnergy.toFixed(1)}</td><td class="num">${r.sellPrice.toFixed(2)}</td><td class="num">${r.net.toFixed(1)}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('tableWrap').innerHTML = html;
+        }
+
+        // ================================================================
+        // 3. 主渲染与状态管理
+        // ================================================================
+        let rawData = null;
+        let buyRecords = [], sellRecords = [], mergedRecords = [];
+        let allDates = [];
+        let currentDate = '';
+        let currentRegion = 'changzhou';
+
+        const regionData = {
+            changzhou: { all: null, da: null, rt: null, loaded: false },
+            sichuan: { all: null, da: null, rt: null, loaded: false }
+        };
+
+        const regionDates = {
+            changzhou: null,
+            sichuan: null
+        };
+
+        function renderAllCharts(selectedDate) {
+            if (!rawData || rawData.length === 0) {
+                document.querySelectorAll('.chart-box, .chart-box-sm, .chart-box-xs').forEach(el => {
+                    Plotly.react(el, [], { annotations: [{ text: '请加载数据', showarrow: false }] });
+                });
+                document.getElementById('tableWrap').innerHTML = '<p class="text-muted">请加载数据</p>';
+                ['kpiBuy', 'kpiSell', 'kpiAvgBuy', 'kpiAvgSell', 'kpiNet'].forEach(id => document.getElementById(id).textContent = '—');
+                return;
+            }
+
+            document.getElementById('titleMain').textContent = '四川主网';
+            document.getElementById('titlePanxi').textContent = '四川攀西';
+            ['badgeMain', 'badgePanxi', 'badgeBar', 'badgeScatter', 'badgeNet', 'badgeTable'].forEach(id => {
+                document.getElementById(id).textContent = selectedDate;
+            });
+
+            const dayBuy = buyRecords.filter(r => r.date === selectedDate);
+            const daySell = sellRecords.filter(r => r.date === selectedDate);
+            const totalBuy = dayBuy.reduce((s, r) => s + r.totalEnergy, 0);
+            const totalSell = daySell.reduce((s, r) => s + r.totalEnergy, 0);
+            const net = totalBuy - totalSell;
+            let buyFee = 0, sellFee = 0;
+            dayBuy.forEach(r => buyFee += r.totalEnergy * r.weightedPrice);
+            daySell.forEach(r => sellFee += r.totalEnergy * r.weightedPrice);
+            const avgBuy = totalBuy > 0 ? buyFee / totalBuy : 0;
+            const avgSell = totalSell > 0 ? sellFee / totalSell : 0;
+
+            document.getElementById('kpiBuy').textContent = totalBuy.toFixed(0);
+            document.getElementById('kpiSell').textContent = totalSell.toFixed(0);
+            document.getElementById('kpiAvgBuy').textContent = avgBuy.toFixed(2);
+            document.getElementById('kpiAvgSell').textContent = avgSell.toFixed(2);
+            document.getElementById('kpiNet').textContent = net.toFixed(0);
+            document.getElementById('kpiNetCard').className = 'kpi-card' + (net >= 0 ? ' net-buy' : ' net-sell');
+
+            const dayData = rawData.filter(r => r['日期'] === selectedDate).sort((a, b) => a['时刻'].localeCompare(b['时刻']));
+            const times = dayData.map(r => r['时刻']);
+
+            const mainBuyE = dayData.map(r => r['购方-四川主网出清电量'] || 0);
+            const mainBuyP = dayData.map(r => r['购方-四川主网出清电价'] || 0);
+            const mainSellE = dayData.map(r => r['售方-四川主网出清电量'] || 0);
+            const mainSellP = dayData.map(r => r['售方-四川主网出清电价'] || 0);
+            const figMain = makeDualAxisFig(times, mainBuyE, mainSellE, mainBuyP, mainSellP, '四川主网', selectedDate);
+            Plotly.react(document.getElementById('chartMain'), figMain.data, figMain.layout);
+
+            const panxiBuyE = dayData.map(r => r['购方-四川攀西出清电量'] || 0);
+            const panxiBuyP = dayData.map(r => r['购方-四川攀西出清电价'] || 0);
+            const panxiSellE = dayData.map(r => r['售方-四川攀西出清电量'] || 0);
+            const panxiSellP = dayData.map(r => r['售方-四川攀西出清电价'] || 0);
+            const figPanxi = makeDualAxisFig(times, panxiBuyE, panxiSellE, panxiBuyP, panxiSellP, '四川攀西', selectedDate);
+            Plotly.react(document.getElementById('chartPanxi'), figPanxi.data, figPanxi.layout);
+
+            renderTrends(selectedDate);
+            const dayMerged = mergedRecords.filter(r => r.date === selectedDate);
+            renderBarChart(dayMerged, selectedDate);
+            renderScatterChart(dayMerged, selectedDate);
+            renderNetChart(dayMerged, selectedDate);
+
+            const latest5 = allDates.slice(-5);
+            renderBuySellTrend(latest5);
+            renderNetTrend(latest5);
+            renderBuyPriceTrend(latest5);
+            renderSellPriceTrend(latest5);
+            renderTable(dayMerged, selectedDate);
+        }
+
+        function applyMarketSelectionAndRefresh() {
+            const market = document.getElementById('marketSelector').value;
+            const region = currentRegion;
+            const dataObj = regionData[region];
+            if (!dataObj || !dataObj.loaded) {
+                rawData = null;
+                renderAllCharts(currentDate);
+                return;
+            }
+
+            let fullData = null;
+            if (region === 'changzhou') {
+                if (market === '汇总') fullData = dataObj.all;
+                else if (market === '日前') fullData = dataObj.da;
+                else if (market === '日内') fullData = dataObj.rt;
+            } else {
+                fullData = dataObj.all;
+            }
+
+            if (!fullData || fullData.length === 0) {
+                document.getElementById('globalStatus').textContent = '⚠️ 当前市场无数据';
+                rawData = null;
+                renderAllCharts(currentDate);
+                return;
+            }
+
+            rawData = fullData;
+
+            allDates = [...new Set(rawData.map(r => r['日期']))].sort();
+            if (allDates.length === 0) {
+                document.getElementById('globalStatus').textContent = '❌ 未找到日期列';
+                return;
+            }
+
+            const summary = dailyRegionSummary(rawData);
+            buyRecords = summary.buy;
+            sellRecords = summary.sell;
+
+            const regionSet = [...new Set(buyRecords.map(r => r.region))];
+            mergedRecords = [];
+            allDates.forEach(date => {
+                regionSet.forEach(reg => {
+                    const buy = buyRecords.find(r => r.date === date && r.region === reg) || { totalEnergy: 0, weightedPrice: 0 };
+                    const sell = sellRecords.find(r => r.date === date && r.region === reg) || { totalEnergy: 0, weightedPrice: 0 };
+                    mergedRecords.push({
+                        date, region: reg,
+                        buyEnergy: buy.totalEnergy, buyPrice: buy.weightedPrice,
+                        sellEnergy: sell.totalEnergy, sellPrice: sell.weightedPrice,
+                        net: buy.totalEnergy - sell.totalEnergy
+                    });
+                });
+            });
+
+            const dateSelector = document.getElementById('dateSelector');
+            dateSelector.innerHTML = '';
+            allDates.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = d;
+                dateSelector.appendChild(opt);
+            });
+            dateSelector.disabled = false;
+
+            const savedDate = regionDates[region];
+            if (savedDate && allDates.includes(savedDate)) {
+                currentDate = savedDate;
+            } else {
+                currentDate = allDates[allDates.length - 1];
+                regionDates[region] = currentDate;
+            }
+            dateSelector.value = currentDate;
+
+            const totalDays = fullData.length > 0 ? [...new Set(fullData.map(r => r['日期']))].length : 0;
+            document.getElementById('globalStatus').textContent =
+                `✅ ${region === 'changzhou' ? '长三角' : '四川'}数据就绪 (共 ${allDates.length} 天)`;
+            renderAllCharts(currentDate);
+        }
+
+        function convertSichuanColumns(data) {
+            const mapping = {
+                '四川主网-买方-受端-电力': '购方-四川主网出清电量',
+                '四川主网-买方-受端-电价': '购方-四川主网出清电价',
+                '四川主网-卖方-送端-电力': '售方-四川主网出清电量',
+                '四川主网-卖方-送端-电价': '售方-四川主网出清电价',
+                '四川攀西-买方-受端-电力': '购方-四川攀西出清电量',
+                '四川攀西-买方-受端-电价': '购方-四川攀西出清电价',
+                '四川攀西-卖方-送端-电力': '售方-四川攀西出清电量',
+                '四川攀西-卖方-送端-电价': '售方-四川攀西出清电价'
+            };
+            return data.map(row => {
+                const newRow = {};
+                let dateVal = row['日期'];
+                if (dateVal !== undefined && dateVal !== null && dateVal !== '') {
+                    if (typeof dateVal === 'number') {
+                        const dateObj = new Date((dateVal - 25569) * 86400 * 1000);
+                        dateVal = dateObj.toISOString().slice(0, 10);
+                    } else if (typeof dateVal === 'string') {
+                        if (dateVal.includes(' ')) dateVal = dateVal.slice(0, 10);
+                        else {
+                            const parsed = new Date(dateVal);
+                            if (!isNaN(parsed)) dateVal = parsed.toISOString().slice(0, 10);
+                        }
+                    } else dateVal = String(dateVal);
+                } else dateVal = '';
+                newRow['日期'] = dateVal;
+                newRow['时刻'] = row['时刻'] || '';
+                for (let [oldKey, newKey] of Object.entries(mapping)) {
+                    newRow[newKey] = row[oldKey] !== undefined ? row[oldKey] : 0;
+                }
+                return newRow;
+            });
+        }
+
+        function loadChangzhouDataFromBuffer(buffer) {
+            try {
+                const workbook = XLSX.read(buffer, { type: 'array' });
+                const sheetDA = workbook.Sheets['日前汇总'];
+                const sheetRT = workbook.Sheets['日内汇总'];
+                if (!sheetDA || !sheetRT) throw new Error('缺少 "日前汇总" 或 "日内汇总" sheet');
+                const jsonDA = XLSX.utils.sheet_to_json(sheetDA);
+                const jsonRT = XLSX.utils.sheet_to_json(sheetRT);
+
+                const all = mergeDA_RT(jsonDA, jsonRT);
+                const da = mergeDA_RT(jsonDA, []);
+                const rt = mergeDA_RT([], jsonRT);
+                if (all.length === 0) throw new Error('合并后无数据');
+
+                regionData.changzhou.all = all;
+                regionData.changzhou.da = da;
+                regionData.changzhou.rt = rt;
+                regionData.changzhou.loaded = true;
+                document.getElementById('fileNameChangzhou').textContent = '已加载';
+                document.getElementById('statusChangzhou').textContent = '✅ 已加载';
+                if (currentRegion === 'changzhou') applyMarketSelectionAndRefresh();
+                showToast('✅ 长三角数据加载成功');
+            } catch (err) {
+                document.getElementById('statusChangzhou').textContent = '❌ 失败: ' + err.message;
+                showToast('❌ 长三角加载失败: ' + err.message);
+                console.error(err);
+            }
+        }
+
+        function loadSichuanDataFromBuffer(buffer) {
+            try {
+                const workbook = XLSX.read(buffer, { type: 'array' });
+                const sheet = workbook.Sheets['总数据'];
+                if (!sheet) throw new Error('缺少 "总数据" sheet');
+                const json = XLSX.utils.sheet_to_json(sheet);
+                if (json.length === 0) throw new Error('数据为空');
+                const converted = convertSichuanColumns(json);
+                regionData.sichuan.all = converted;
+                regionData.sichuan.da = converted;
+                regionData.sichuan.rt = [];
+                regionData.sichuan.loaded = true;
+                document.getElementById('fileNameSichuan').textContent = '已加载';
+                document.getElementById('statusSichuan').textContent = '✅ 已加载';
+                if (currentRegion === 'sichuan') applyMarketSelectionAndRefresh();
+                showToast('✅ 四川数据加载成功');
+            } catch (err) {
+                document.getElementById('statusSichuan').textContent = '❌ 失败: ' + err.message;
+                showToast('❌ 四川加载失败: ' + err.message);
+                console.error(err);
+            }
+        }
+
+        function switchRegion(region) {
+            if (currentRegion && currentDate) {
+                regionDates[currentRegion] = currentDate;
+            }
+            currentRegion = region;
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.region === region);
+            });
+
+            const marketSel = document.getElementById('marketSelector');
+            if (region === 'sichuan') {
+                for (let opt of marketSel.options) {
+                    if (opt.value === '日内') {
+                        opt.disabled = true;
+                        opt.textContent = '日内（不可用）';
+                    } else {
+                        opt.disabled = false;
+                        opt.textContent = opt.value === '汇总' ? '汇总（日前）' : '日前';
+                    }
+                }
+                if (marketSel.value === '日内') marketSel.value = '日前';
+            } else {
+                for (let opt of marketSel.options) {
+                    opt.disabled = false;
+                    if (opt.value === '汇总') opt.textContent = '汇总（日前+日内）';
+                    else if (opt.value === '日前') opt.textContent = '日前';
+                    else if (opt.value === '日内') opt.textContent = '日内';
+                }
+            }
+
+            const dataObj = regionData[region];
+            if (dataObj.loaded) {
+                applyMarketSelectionAndRefresh();
+            } else {
+                rawData = null;
+                renderAllCharts('');
+                document.getElementById('globalStatus').textContent =
+                    `⚠️ ${region === 'changzhou' ? '长三角' : '四川'}数据未加载，请上传或加载默认`;
+            }
+        }
+
+        // ================================================================
+        // 4. 事件绑定与初始化
+        // ================================================================
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                switchRegion(this.dataset.region);
+            });
+        });
+
+        document.getElementById('fileChangzhou').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                loadChangzhouDataFromBuffer(new Uint8Array(ev.target.result));
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        document.getElementById('fileSichuan').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                loadSichuanDataFromBuffer(new Uint8Array(ev.target.result));
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // ===================== CloudBase 数据库 =====================
+        const TCB_ENV = 'clny-d1ghm6oon97654111';   // ← 改成你的 CloudBase 环境 ID
+        const tcbApp = cloudbase.init({ env: TCB_ENV });
+        const tcbAuth = tcbApp.auth();
+        const tcbDb = tcbApp.database();
+
+        async function ensureTcbLogin() {
+            await tcbAuth.signInAnonymously();
+        }
+
+        // 分页查询集合全部数据（CloudBase get 单次上限 1000 条）
+        async function fetchAll(collectionName) {
+            let all = [];
+            const pageSize = 1000;
+            for (let skip = 0; ; skip += pageSize) {
+                const res = await tcbDb.collection(collectionName)
+                    .skip(skip).limit(pageSize).get();
+                const data = res.data || [];
+                all = all.concat(data);
+                if (data.length < pageSize) break;
+            }
+            return all;
+        }
+
+        document.getElementById('loadDefaultChangzhou').addEventListener('click', function() {
+            document.getElementById('statusChangzhou').textContent = '⏳ 加载中...';
+            ensureTcbLogin()
+                .then(() => Promise.all([
+                    fetchAll('cross_region_da'),
+                    fetchAll('cross_region_rt')
+                ]))
+                .then(([jsonDA, jsonRT]) => {
+                    const all = mergeDA_RT(jsonDA, jsonRT);
+                    const da = mergeDA_RT(jsonDA, []);
+                    const rt = mergeDA_RT([], jsonRT);
+                    if (all.length === 0) throw new Error('合并后无数据');
+                    regionData.changzhou.all = all;
+                    regionData.changzhou.da = da;
+                    regionData.changzhou.rt = rt;
+                    regionData.changzhou.loaded = true;
+                    document.getElementById('fileNameChangzhou').textContent = '已加载';
+                    document.getElementById('statusChangzhou').textContent = '✅ 已加载';
+                    if (currentRegion === 'changzhou') applyMarketSelectionAndRefresh();
+                    showToast('✅ 长三角数据加载成功');
+                })
+                .catch(err => {
+                    document.getElementById('statusChangzhou').textContent = '⚠️ 加载失败';
+                    console.warn('长三角数据库加载失败:', err);
+                    showToast('⚠️ 长三角数据加载失败，请检查数据库');
+                });
+        });
+
+        document.getElementById('loadDefaultSichuan').addEventListener('click', function() {
+            document.getElementById('statusSichuan').textContent = '⏳ 加载中...';
+            ensureTcbLogin()
+                .then(() => fetchAll('sichuan_spot'))
+                .then(json => {
+                    if (json.length === 0) throw new Error('数据为空');
+                    const converted = convertSichuanColumns(json);
+                    regionData.sichuan.all = converted;
+                    regionData.sichuan.da = converted;
+                    regionData.sichuan.rt = [];
+                    regionData.sichuan.loaded = true;
+                    document.getElementById('fileNameSichuan').textContent = '已加载';
+                    document.getElementById('statusSichuan').textContent = '✅ 已加载';
+                    if (currentRegion === 'sichuan') applyMarketSelectionAndRefresh();
+                    showToast('✅ 四川数据加载成功');
+                })
+                .catch(err => {
+                    document.getElementById('statusSichuan').textContent = '⚠️ 加载失败';
+                    console.warn('四川数据库加载失败:', err);
+                    showToast('⚠️ 四川数据加载失败，请检查数据库');
+                });
+        });
+
+        document.getElementById('marketSelector').addEventListener('change', function() {
+            if (regionData[currentRegion].loaded) applyMarketSelectionAndRefresh();
+        });
+
+        document.getElementById('dateSelector').addEventListener('change', function() {
+            if (this.value) {
+                currentDate = this.value;
+                regionDates[currentRegion] = this.value;
+                renderAllCharts(this.value);
+            }
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            if (!currentDate || mergedRecords.length === 0) return;
+            const dayMerged = mergedRecords.filter(r => r.date === currentDate);
+            if (dayMerged.length === 0) return;
+            let csv = '地区,购方总电量(MWh),购方均价(元/MWh),售方总电量(MWh),售方均价(元/MWh),净买入(MWh)\n';
+            dayMerged.forEach(r => {
+                csv += `${r.region},${r.buyEnergy.toFixed(1)},${r.buyPrice.toFixed(2)},${r.sellEnergy.toFixed(1)},${r.sellPrice.toFixed(2)},${r.net.toFixed(1)}\n`;
+            });
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `跨区交易_${currentRegion}_${currentDate}.csv`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        });
+
+        document.getElementById('gotoWeatherBtn').addEventListener('click', function() {
+            window.open('https://liyanage-yy.github.io/weather-load-dashboard/', '_blank');
+        });
+
+        function showToast(msg) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            clearTimeout(el._timer);
+            el._timer = setTimeout(() => el.classList.remove('show'), 3500);
+        }
+
+        // ================================================================
+        // 5. 启动
+        // ================================================================
+        window.onload = function() {
+            switchRegion('changzhou');
+            setTimeout(() => {
+                document.getElementById('loadDefaultChangzhou').click();
+                document.getElementById('loadDefaultSichuan').click();
+            }, 300);
+        };
+
+        console.log('⚡ 双区域电力交易仪表盘已启动');
+    </script>
+</body>
+</html>
