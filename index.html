@@ -223,7 +223,7 @@
         </div>
 
         <div id="panel-main">
-            <div class="kpi-grid" id="kpiGridMain">
+            <div class="kpi-grid cz-only" id="kpiGridMain">
                 <div class="kpi-card"><div class="label">总购电量</div><div class="value" id="kpiBuy">—</div><div class="sub">MWh</div></div>
                 <div class="kpi-card"><div class="label">总售电量</div><div class="value" id="kpiSell">—</div><div class="sub">MWh</div></div>
                 <div class="kpi-card"><div class="label">购方综合均价</div><div class="value" id="kpiAvgBuy">—</div><div class="sub">元/MWh</div></div>
@@ -242,40 +242,38 @@
 
             <div class="chart-section">
                 <h2>📈 最新5日分时段趋势</h2>
-                <div class="chart-grid-4" id="trendGrid">
-                    <div class="chart-box-xs" id="trend1"></div>
-                    <div class="chart-box-xs" id="trend2"></div>
-                    <div class="chart-box-xs" id="trend3"></div>
-                    <div class="chart-box-xs" id="trend4"></div>
-                </div>
+                <div class="chart-box" id="trend1" style="min-height:320px;"></div>
+                <div class="chart-box" id="trend2" style="min-height:320px;"></div>
+                <div class="chart-box" id="trend3" style="min-height:320px;"></div>
+                <div class="chart-box" id="trend4" style="min-height:320px;"></div>
             </div>
 
-            <div class="chart-grid-2">
+            <div class="chart-grid-2 cz-only">
                 <div class="chart-section"><h2>📊 各地区买卖总量 <span class="badge" id="badgeBar"></span></h2><div class="chart-box-sm" id="chartBar"></div></div>
                 <div class="chart-section"><h2>💰 买卖价格对比 <span class="badge" id="badgeScatter"></span></h2><div class="chart-box-sm" id="chartScatter"></div></div>
             </div>
 
-            <div class="chart-section">
+            <div class="chart-section cz-only">
                 <h2>📈 净买入倾向 <span class="badge" id="badgeNet"></span></h2>
                 <div class="chart-box" id="chartNet" style="min-height:420px;"></div>
             </div>
 
-            <div class="chart-grid-2">
+            <div class="chart-grid-2 cz-only">
                 <div class="chart-section"><h2>📉 购电趋势（最新5天）</h2><div class="chart-box-sm" id="chartBuyTrend" style="min-height:420px;"></div></div>
                 <div class="chart-section"><h2>📉 售电趋势（最新5天）</h2><div class="chart-box-sm" id="chartSellTrend" style="min-height:420px;"></div></div>
             </div>
 
-            <div class="chart-section">
+            <div class="chart-section cz-only">
                 <h2>📊 净买入趋势（最新5天）</h2>
                 <div class="chart-box-sm" id="chartNetTrend" style="min-height:420px;"></div>
             </div>
 
-            <div class="chart-grid-2">
+            <div class="chart-grid-2 cz-only">
                 <div class="chart-section"><h2>📊 购方均价趋势（最新5天）</h2><div class="chart-box-sm" id="chartBuyPriceTrend" style="min-height:420px;"></div></div>
                 <div class="chart-section"><h2>📊 售方均价趋势（最新5天）</h2><div class="chart-box-sm" id="chartSellPriceTrend" style="min-height:420px;"></div></div>
             </div>
 
-            <div class="chart-section">
+            <div class="chart-section cz-only">
                 <div class="flex-between">
                     <h2>📋 详细数据 <span class="badge" id="badgeTable"></span></h2>
                     <button class="btn-download" id="downloadBtn">📥 下载 CSV</button>
@@ -441,19 +439,21 @@
         // 2. 图表渲染函数
         // ================================================================
         function makeDualAxisFig(times, buyE, sellE, buyP, sellP, region, date) {
+            const qName = quantityName();
+            const qUnit = quantityUnit();
             return {
                 data: [
-                    { x: times, y: buyE, name: '购方电量', type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y' },
-                    { x: times, y: sellE, name: '售方电量', type: 'bar', marker: { color: '#d62728' }, yaxis: 'y' },
+                    { x: times, y: buyE, name: '购方' + qName, type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y' },
+                    { x: times, y: sellE, name: '售方' + qName, type: 'bar', marker: { color: '#d62728' }, yaxis: 'y' },
                     { x: times, y: buyP, name: '购方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4' }, marker: { color: '#1f77b4' }, yaxis: 'y2' },
                     { x: times, y: sellP, name: '售方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728' }, marker: { color: '#d62728' }, yaxis: 'y2' }
                 ],
                 layout: {
                     title: `${region} - ${date}`,
                     xaxis: { title: '时刻', tickangle: -45 },
-                    yaxis: { title: '电量 (MWh)', rangemode: 'tozero', side: 'left' },
+                    yaxis: { title: qName + ' (' + qUnit + ')', rangemode: 'tozero', side: 'left' },
                     yaxis2: { title: '电价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
-                    legend: { orientation: 'h', y: 1.08 },
+                    legend: { orientation: 'h', y: 1.08, x: 0.5, xanchor: 'center' },
                     height: 380,
                     margin: { l: 60, r: 60, t: 50, b: 60 },
                     barmode: 'group'
@@ -625,13 +625,17 @@
         }
 
         function renderTrends(selectedDate) {
+            const qName = quantityName();
+            const qUnit = quantityUnit();
             const latest5 = allDates.slice(-5);
-            const regions = ['四川主网', '四川攀西'];
-            const directions = ['购方', '售方'];
-            const combos = [];
-            regions.forEach(r => directions.forEach(d => combos.push({ region: r, direction: d })));
+            const combos = [
+                { region: '四川主网', direction: '购方', el: 'trend1' },
+                { region: '四川主网', direction: '售方', el: 'trend2' },
+                { region: '四川攀西', direction: '购方', el: 'trend3' },
+                { region: '四川攀西', direction: '售方', el: 'trend4' }
+            ];
 
-            const plots = combos.map(({ region, direction }) => {
+            combos.forEach(({ region, direction, el }) => {
                 const col = `${direction}-${region}出清电量`;
                 const traces = latest5.map(date => {
                     const dayData = rawData.filter(r => r['日期'] === date).sort((a, b) => a['时刻'].localeCompare(b['时刻']));
@@ -641,24 +645,17 @@
                         mode: 'lines+markers', name: date, type: 'scatter'
                     };
                 });
-                return {
-                    traces: traces,
-                    layout: {
-                        title: `${region} - ${direction}`,
-                        xaxis: { title: '时刻', tickangle: -30 },
-                        yaxis: { title: '电量 (MWh)', rangemode: 'tozero' }, height: 240,
-                        margin: { l: 40, r: 20, t: 60, b: 40 },
-                        legend: { orientation: 'h', y: 1.15, font: { size: 10 } },
-                        showlegend: true
-                    }
+                const layout = {
+                    title: `${region} - ${direction}`,
+                    xaxis: { title: '时刻', tickangle: -30, nticks: 12 },
+                    yaxis: { title: qName + ' (' + qUnit + ')', rangemode: 'tozero' },
+                    height: 380,
+                    margin: { l: 60, r: 60, t: 50, b: 60 },
+                    legend: { orientation: 'h', y: 1.08, x: 0.5, xanchor: 'center', font: { size: 11 } },
+                    showlegend: true
                 };
+                Plotly.react(document.getElementById(el), traces, layout);
             });
-
-            const trendEls = ['trend1', 'trend2', 'trend3', 'trend4'].map(id => document.getElementById(id));
-            for (let i = 0; i < 4; i++) {
-                if (i < plots.length) Plotly.react(trendEls[i], plots[i].traces, plots[i].layout);
-                else Plotly.react(trendEls[i], [], { height: 240, annotations: [{ text: '无数据', showarrow: false }] });
-            }
         }
 
         function renderTable(dayMerged, date) {
@@ -693,9 +690,28 @@
             sichuan: null
         };
 
+        // 单位区分：四川为「电力」(MW)，长三角为「电量」(MWh)
+        function quantityUnit() {
+            return currentRegion === 'sichuan' ? 'MW' : 'MWh';
+        }
+
+        function quantityName() {
+            return currentRegion === 'sichuan' ? '电力' : '电量';
+        }
+
+        // 四川仅显示「分时段量价」和「最新5日分时段趋势」，其余区块隐藏
+        function updateRegionVisibility() {
+            const isSichuan = currentRegion === 'sichuan';
+            document.querySelectorAll('.cz-only').forEach(el => {
+                el.style.display = isSichuan ? 'none' : '';
+            });
+        }
+
         function renderAllCharts(selectedDate) {
             if (!rawData || rawData.length === 0) {
                 document.querySelectorAll('.chart-box, .chart-box-sm, .chart-box-xs').forEach(el => {
+                    // 四川仅保留可见图表，跳过隐藏区块内的空渲染
+                    if (currentRegion === 'sichuan' && el.closest('.cz-only')) return;
                     Plotly.react(el, [], { annotations: [{ text: '请加载数据', showarrow: false }] });
                 });
                 document.getElementById('tableWrap').innerHTML = '<p class="text-muted">请加载数据</p>';
@@ -745,17 +761,20 @@
             Plotly.react(document.getElementById('chartPanxi'), figPanxi.data, figPanxi.layout);
 
             renderTrends(selectedDate);
-            const dayMerged = mergedRecords.filter(r => r.date === selectedDate);
-            renderBarChart(dayMerged, selectedDate);
-            renderScatterChart(dayMerged, selectedDate);
-            renderNetChart(dayMerged, selectedDate);
+            // 四川只显示分时段量价与最新5日分时段趋势，跳过其余汇总图表
+            if (currentRegion !== 'sichuan') {
+                const dayMerged = mergedRecords.filter(r => r.date === selectedDate);
+                renderBarChart(dayMerged, selectedDate);
+                renderScatterChart(dayMerged, selectedDate);
+                renderNetChart(dayMerged, selectedDate);
 
-            const latest5 = allDates.slice(-5);
-            renderBuySellTrend(latest5);
-            renderNetTrend(latest5);
-            renderBuyPriceTrend(latest5);
-            renderSellPriceTrend(latest5);
-            renderTable(dayMerged, selectedDate);
+                const latest5 = allDates.slice(-5);
+                renderBuySellTrend(latest5);
+                renderNetTrend(latest5);
+                renderBuyPriceTrend(latest5);
+                renderSellPriceTrend(latest5);
+                renderTable(dayMerged, selectedDate);
+            }
         }
 
         function applyMarketSelectionAndRefresh() {
@@ -928,6 +947,7 @@
                 regionDates[currentRegion] = currentDate;
             }
             currentRegion = region;
+            updateRegionVisibility();
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.region === region);
             });
