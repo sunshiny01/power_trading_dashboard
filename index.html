@@ -240,12 +240,18 @@
                 <div class="chart-box" id="chartPanxi"></div>
             </div>
 
-            <div class="chart-section">
-                <h2>📈 最新5日分时段趋势</h2>
-                <div class="chart-box" id="trend1" style="min-height:320px;"></div>
-                <div class="chart-box" id="trend2" style="min-height:320px;"></div>
-                <div class="chart-box" id="trend3" style="min-height:320px;"></div>
-                <div class="chart-box" id="trend4" style="min-height:320px;"></div>
+            <div class="chart-section sichuan-only">
+                <div class="chart-box" id="chartBuySellStatBuy" style="min-height:380px;"></div>
+            </div>
+            <div class="chart-section sichuan-only">
+                <div class="chart-box" id="chartBuySellStatSell" style="min-height:380px;"></div>
+            </div>
+
+            <div class="chart-grid-2">
+                <div class="chart-section"><div class="chart-box-sm" id="trend1" style="min-height:380px;"></div></div>
+                <div class="chart-section"><div class="chart-box-sm" id="trend2" style="min-height:380px;"></div></div>
+                <div class="chart-section"><div class="chart-box-sm" id="trend3" style="min-height:380px;"></div></div>
+                <div class="chart-section"><div class="chart-box-sm" id="trend4" style="min-height:380px;"></div></div>
             </div>
 
             <div class="chart-grid-2 cz-only">
@@ -656,6 +662,63 @@
                 };
                 Plotly.react(document.getElementById(el), traces, layout);
             });
+            renderBuySellStatTrend();
+        }
+
+        // 卖方/买方-四川主网及攀西-电力统计（最新5天，两个独立卡片）
+        function renderBuySellStatTrend() {
+            const sellEl = document.getElementById('chartBuySellStatSell');
+            const buyEl = document.getElementById('chartBuySellStatBuy');
+            if (currentRegion !== 'sichuan') {
+                Plotly.react(sellEl, [], {});
+                Plotly.react(buyEl, [], {});
+                return;
+            }
+            if (!rawData || rawData.length === 0 || allDates.length === 0) {
+                Plotly.react(sellEl, [], { height: 380, annotations: [{ text: '请加载数据', showarrow: false }] });
+                Plotly.react(buyEl, [], { height: 380, annotations: [{ text: '请加载数据', showarrow: false }] });
+                return;
+            }
+
+            const qUnit = quantityUnit();
+            const latest5 = allDates.slice(-5);
+            const sortByTime = arr => arr.sort((a, b) => a['时刻'].localeCompare(b['时刻']));
+
+            // 卖方子图（独立卡片）
+            const sellTraces = latest5.map(date => {
+                const dayData = sortByTime(rawData.filter(r => r['日期'] === date));
+                return {
+                    x: dayData.map(r => r['时刻']),
+                    y: dayData.map(r => (r['售方-四川主网出清电量'] || 0) + (r['售方-四川攀西出清电量'] || 0)),
+                    mode: 'lines+markers', name: date, type: 'scatter'
+                };
+            });
+            Plotly.react(sellEl, sellTraces, {
+                title: '卖方-四川主网及攀西-电力统计',
+                autosize: true,
+                xaxis: { title: '时刻', tickangle: -30, nticks: 10 },
+                yaxis: { title: '卖方电力 (' + qUnit + ')', rangemode: 'tozero' },
+                height: 380, margin: { l: 60, r: 60, t: 40, b: 70 },
+                legend: { orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center', font: { size: 10 } }
+            });
+
+            // 买方子图（独立卡片）
+            const buyTraces = latest5.map(date => {
+                const dayData = sortByTime(rawData.filter(r => r['日期'] === date));
+                return {
+                    x: dayData.map(r => r['时刻']),
+                    y: dayData.map(r => (r['购方-四川主网出清电量'] || 0) + (r['购方-四川攀西出清电量'] || 0)),
+                    mode: 'lines+markers', name: date, type: 'scatter'
+                };
+            });
+            Plotly.react(buyEl, buyTraces, {
+                title: '买方-四川主网及攀西-电力统计',
+                autosize: true,
+                xaxis: { title: '时刻', tickangle: -30, nticks: 10 },
+                yaxis: { title: '买方电力 (' + qUnit + ')', rangemode: 'tozero' },
+                height: 380, margin: { l: 60, r: 60, t: 40, b: 70 },
+                legend: { orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center', font: { size: 10 } }
+            });
         }
 
         function renderTable(dayMerged, date) {
@@ -704,6 +767,10 @@
             const isSichuan = currentRegion === 'sichuan';
             document.querySelectorAll('.cz-only').forEach(el => {
                 el.style.display = isSichuan ? 'none' : '';
+            });
+            // 四川专属区块：仅在四川 tab 显示
+            document.querySelectorAll('.sichuan-only').forEach(el => {
+                el.style.display = isSichuan ? '' : 'none';
             });
         }
 
