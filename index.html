@@ -118,10 +118,15 @@
         .kpi-card.net-buy { border-left-color: #22c55e; }
         .kpi-card.net-sell { border-left-color: #ef4444; }
 
-        /* ===== 区域容器：单卡片 + 虚线分区 ===== */
+        /* ===== 区域容器：单卡片 + 虚线分区（仅长三角页签） ===== */
         .region-card {
             background: #ffffff; border-radius: 16px; padding: 20px 24px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 24px;
+        }
+        /* 四川页签：区域容器退化为透明包裹，各区块恢复为独立卡片 */
+        body.sichuan-tab .region-card {
+            background: transparent; box-shadow: none;
+            border-radius: 0; padding: 0; margin: 0;
         }
         /* 区域大标题 + 小注释 */
         .region-card > .region-head {
@@ -135,21 +140,21 @@
             border-bottom: 1px dashed #e8edf4;
         }
         /* 区域内的分组小标题（如 四川区域购售方趋势） */
-        .region-card > .block-title {
-            font-size: 16px; font-weight: 600; color: #0f172a;
+        .block-title { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 14px; }
+        body:not(.sichuan-tab) .region-card > .block-title {
             border-top: 1px dashed #e8edf4;
             margin: 16px 0 14px 0; padding-top: 16px;
         }
         /* 区域容器内的图表：去掉自身卡片外观，改用虚线分隔 */
-        .region-card > .chart-section,
-        .region-card > .chart-grid-2,
-        .region-card > .chart-grid-2 > .chart-section {
+        body:not(.sichuan-tab) .region-card > .chart-section,
+        body:not(.sichuan-tab) .region-card > .chart-grid-2,
+        body:not(.sichuan-tab) .region-card > .chart-grid-2 > .chart-section {
             background: transparent; box-shadow: none; border-radius: 0;
             padding: 0; margin: 0;
         }
-        .region-card > .chart-section + .chart-section,
-        .region-card > .chart-section + .chart-grid-2,
-        .region-card > .chart-grid-2 + .chart-section {
+        body:not(.sichuan-tab) .region-card > .chart-section + .chart-section,
+        body:not(.sichuan-tab) .region-card > .chart-section + .chart-grid-2,
+        body:not(.sichuan-tab) .region-card > .chart-grid-2 + .chart-section {
             border-top: 1px dashed #e8edf4;
             margin-top: 16px; padding-top: 16px;
         }
@@ -179,6 +184,12 @@
         .table-wrap th { background: #f1f5f9; padding: 10px 14px; text-align: left; border-bottom: 2px solid #e2e8f0; }
         .table-wrap td { padding: 8px 14px; border-bottom: 1px solid #f1f5f9; }
         .table-wrap .num { text-align: right; font-variant-numeric: tabular-nums; }
+        /* 详细数据：区域分组行与成员明细缩进 */
+        .table-wrap td.indent { padding-left: 34px; color: #475569; }
+        .table-wrap tr.group-row td {
+            background: #f8fafc; font-weight: 700; color: #0f172a;
+            border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;
+        }
         .btn-download {
             display: inline-block; margin-top: 12px; padding: 8px 24px;
             background: #3b82f6; color: #fff; border: none; border-radius: 8px;
@@ -272,11 +283,11 @@
 
             <!-- ================= 全区域合计（仅长三角页签展示） ================= -->
             <div class="kpi-grid cz-only" id="kpiGridMain">
-                <div class="kpi-card"><div class="label">总购电量</div><div class="value" id="kpiBuy">—</div><div class="sub">MWh</div></div>
-                <div class="kpi-card"><div class="label">总售电量</div><div class="value" id="kpiSell">—</div><div class="sub">MWh</div></div>
-                <div class="kpi-card"><div class="label">购方综合均价</div><div class="value" id="kpiAvgBuy">—</div><div class="sub">元/MWh</div></div>
-                <div class="kpi-card"><div class="label">售方综合均价</div><div class="value" id="kpiAvgSell">—</div><div class="sub">元/MWh</div></div>
-                <div class="kpi-card" id="kpiNetCard"><div class="label">净买入</div><div class="value" id="kpiNet">—</div><div class="sub">MWh</div></div>
+                <div class="kpi-card"><div class="label">总购电量</div><div class="value"><span id="kpiBuy">—</span><span class="delta" id="kpiBuyDelta"></span></div><div class="sub">MWh</div></div>
+                <div class="kpi-card"><div class="label">总售电量</div><div class="value"><span id="kpiSell">—</span><span class="delta" id="kpiSellDelta"></span></div><div class="sub">MWh</div></div>
+                <div class="kpi-card"><div class="label">购方综合均价</div><div class="value"><span id="kpiAvgBuy">—</span><span class="delta" id="kpiAvgBuyDelta"></span></div><div class="sub">元/MWh</div></div>
+                <div class="kpi-card"><div class="label">售方综合均价</div><div class="value"><span id="kpiAvgSell">—</span><span class="delta" id="kpiAvgSellDelta"></span></div><div class="sub">元/MWh</div></div>
+                <div class="kpi-card" id="kpiNetCard"><div class="label">净买入</div><div class="value"><span id="kpiNet">—</span><span class="delta" id="kpiNetDelta"></span></div><div class="sub">MWh</div></div>
             </div>
 
             <!-- ================= 区域一：四川（标题与 KPI 仅长三角页签展示） ================= -->
@@ -290,7 +301,7 @@
                     <div class="kpi-card"><div class="label">当日购方均价</div><div class="value"><span id="scBuyP">—</span><span class="delta" id="scBuyPDelta"></span></div><div class="sub">元/MWh</div></div>
                     <div class="kpi-card"><div class="label">当日售方总量</div><div class="value"><span id="scSellE">—</span><span class="delta" id="scSellEDelta"></span></div><div class="sub"><span id="scSellEUnit">MWh</span></div></div>
                     <div class="kpi-card"><div class="label">当日售方均价</div><div class="value"><span id="scSellP">—</span><span class="delta" id="scSellPDelta"></span></div><div class="sub">元/MWh</div></div>
-                    <div class="kpi-card" id="scNetCard"><div class="label">净买入</div><div class="value"><span id="scNet">—</span></div><div class="sub">MWh</div></div>
+                    <div class="kpi-card" id="scNetCard"><div class="label">净买入</div><div class="value"><span id="scNet">—</span><span class="delta" id="scNetDelta"></span></div><div class="sub">MWh</div></div>
                 </div>
 
                 <div class="chart-section">
@@ -331,7 +342,7 @@
                     <div class="kpi-card"><div class="label">当日购方均价</div><div class="value"><span id="groupABuyP">—</span><span class="delta" id="groupABuyPDelta"></span></div><div class="sub">元/MWh</div></div>
                     <div class="kpi-card"><div class="label">当日售方总量</div><div class="value"><span id="groupASellE">—</span><span class="delta" id="groupASellEDelta"></span></div><div class="sub">MWh</div></div>
                     <div class="kpi-card"><div class="label">当日售方均价</div><div class="value"><span id="groupASellP">—</span><span class="delta" id="groupASellPDelta"></span></div><div class="sub">元/MWh</div></div>
-                    <div class="kpi-card" id="groupANetCard"><div class="label">净买入</div><div class="value"><span id="groupANet">—</span></div><div class="sub">MWh</div></div>
+                    <div class="kpi-card" id="groupANetCard"><div class="label">净买入</div><div class="value"><span id="groupANet">—</span><span class="delta" id="groupANetDelta"></span></div><div class="sub">MWh</div></div>
                 </div>
                 <div class="chart-box" id="chartGroupA" style="min-height:460px;"></div>
             </div>
@@ -347,7 +358,7 @@
                     <div class="kpi-card"><div class="label">当日购方均价</div><div class="value"><span id="groupBBuyP">—</span><span class="delta" id="groupBBuyPDelta"></span></div><div class="sub">元/MWh</div></div>
                     <div class="kpi-card"><div class="label">当日售方总量</div><div class="value"><span id="groupBSellE">—</span><span class="delta" id="groupBSellEDelta"></span></div><div class="sub">MWh</div></div>
                     <div class="kpi-card"><div class="label">当日售方均价</div><div class="value"><span id="groupBSellP">—</span><span class="delta" id="groupBSellPDelta"></span></div><div class="sub">元/MWh</div></div>
-                    <div class="kpi-card" id="groupBNetCard"><div class="label">净买入</div><div class="value"><span id="groupBNet">—</span></div><div class="sub">MWh</div></div>
+                    <div class="kpi-card" id="groupBNetCard"><div class="label">净买入</div><div class="value"><span id="groupBNet">—</span><span class="delta" id="groupBNetDelta"></span></div><div class="sub">MWh</div></div>
                 </div>
                 <div class="chart-box" id="chartGroupB" style="min-height:460px;"></div>
             </div>
@@ -641,6 +652,7 @@
                 setKpiDelta(group.id + 'BuyPDelta', prev ? day.buyPrice - prev.buyPrice : null, 2);
                 setKpiDelta(group.id + 'SellEDelta', prev ? day.sellEnergy - prev.sellEnergy : null, 0);
                 setKpiDelta(group.id + 'SellPDelta', prev ? day.sellPrice - prev.sellPrice : null, 2);
+                setKpiDelta(group.id + 'NetDelta', prev ? day.net - prev.net : null, 0);
 
                 if (group.unitDynamic) {
                     const u = quantityUnit();
@@ -650,18 +662,64 @@
             });
         }
 
+        // 清空一处或多处环比标识
+        function resetDelta(ids) {
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.textContent = '';
+                el.className = 'delta';
+            });
+        }
+
         function resetRegionKpis() {
             REGION_GROUPS.forEach(group => {
                 [group.id + 'BuyE', group.id + 'BuyP', group.id + 'SellE', group.id + 'SellP', group.id + 'Net']
                     .forEach(id => document.getElementById(id).textContent = '—');
-                [group.id + 'BuyEDelta', group.id + 'BuyPDelta', group.id + 'SellEDelta', group.id + 'SellPDelta']
-                    .forEach(id => {
-                        const el = document.getElementById(id);
-                        el.textContent = '';
-                        el.className = 'delta';
-                    });
+                resetDelta([
+                    group.id + 'BuyEDelta', group.id + 'BuyPDelta',
+                    group.id + 'SellEDelta', group.id + 'SellPDelta', group.id + 'NetDelta'
+                ]);
                 document.getElementById(group.id + 'NetCard').className = 'kpi-card';
             });
+        }
+
+        // 某一日「全区域合计」的量价
+        function dailyTotal(date) {
+            const b = buyRecords.filter(r => r.date === date);
+            const s = sellRecords.filter(r => r.date === date);
+            const buyE = b.reduce((t, r) => t + r.totalEnergy, 0);
+            const sellE = s.reduce((t, r) => t + r.totalEnergy, 0);
+            let bf = 0, sf = 0;
+            b.forEach(r => bf += r.totalEnergy * r.weightedPrice);
+            s.forEach(r => sf += r.totalEnergy * r.weightedPrice);
+            return {
+                buyE: buyE, sellE: sellE,
+                buyP: buyE > 0 ? bf / buyE : 0,
+                sellP: sellE > 0 ? sf / sellE : 0,
+                net: buyE - sellE
+            };
+        }
+
+        // 全区域合计 KPI（当日值 + 与前一日对比）
+        function renderTotalKpis(selectedDate) {
+            const idx = allDates.indexOf(selectedDate);
+            const cur = dailyTotal(selectedDate);
+            const prev = idx > 0 ? dailyTotal(allDates[idx - 1]) : null;
+
+            setKpiValue('kpiBuy', cur.buyE, 0);
+            setKpiValue('kpiSell', cur.sellE, 0);
+            setKpiValue('kpiAvgBuy', cur.buyP, 2);
+            setKpiValue('kpiAvgSell', cur.sellP, 2);
+            setKpiValue('kpiNet', cur.net, 0);
+            document.getElementById('kpiNetCard').className =
+                'kpi-card' + (cur.net >= 0 ? ' net-buy' : ' net-sell');
+
+            setKpiDelta('kpiBuyDelta', prev ? cur.buyE - prev.buyE : null, 0);
+            setKpiDelta('kpiSellDelta', prev ? cur.sellE - prev.sellE : null, 0);
+            setKpiDelta('kpiAvgBuyDelta', prev ? cur.buyP - prev.buyP : null, 2);
+            setKpiDelta('kpiAvgSellDelta', prev ? cur.sellP - prev.sellP : null, 2);
+            setKpiDelta('kpiNetDelta', prev ? cur.net - prev.net : null, 0);
         }
 
         // 区域量价趋势（仅长三角、西北区域展示图表）
@@ -784,14 +842,75 @@
             });
         }
 
-        function renderTable(dayMerged, date) {
+        // 按电量加权汇总若干地区的量价
+        function sumOfRecords(recs) {
+            let bE = 0, bF = 0, sE = 0, sF = 0;
+            recs.forEach(r => {
+                bE += r.buyEnergy; bF += r.buyEnergy * r.buyPrice;
+                sE += r.sellEnergy; sF += r.sellEnergy * r.sellPrice;
+            });
+            return {
+                buyE: bE, buyP: bE > 0 ? bF / bE : 0,
+                sellE: sE, sellP: sE > 0 ? sF / sE : 0,
+                net: bE - sE
+            };
+        }
+
+        // 当日明细按区域分组：每组一行「合计」+ 各成员明细；未归入任何区域的放到「其它地区」
+        function buildTableRows(dayMerged) {
+            const rows = [];
+            const curOf = r => ({
+                buyE: r.buyEnergy, buyP: r.buyPrice,
+                sellE: r.sellEnergy, sellP: r.sellPrice, net: r.net
+            });
+
+            const grouped = new Set();
+            REGION_GROUPS.forEach(group => {
+                const recs = group.members
+                    .map(name => dayMerged.find(r => r.region === name))
+                    .filter(Boolean);
+                if (recs.length === 0) return;
+                group.members.forEach(name => grouped.add(name));
+                rows.push(Object.assign(
+                    { label: group.title + '（合计）', isGroup: true },
+                    sumOfRecords(recs)
+                ));
+                recs.forEach(r => rows.push(Object.assign(
+                    { label: r.region, isGroup: false },
+                    curOf(r)
+                )));
+            });
+
+            const others = dayMerged.filter(r => !grouped.has(r.region));
+            if (others.length > 0) {
+                rows.push(Object.assign(
+                    { label: '其它地区（合计）', isGroup: true },
+                    sumOfRecords(others)
+                ));
+                others.forEach(r => rows.push(Object.assign(
+                    { label: r.region, isGroup: false },
+                    curOf(r)
+                )));
+            }
+
+            return rows;
+        }
+
+        function renderTable(dayMerged) {
             if (dayMerged.length === 0) {
                 document.getElementById('tableWrap').innerHTML = '<p class="text-muted">该日期无交易数据</p>';
                 return;
             }
+            const rows = buildTableRows(dayMerged);
             let html = `<table><thead><tr><th>地区</th><th class="num">购方总电量 (MWh)</th><th class="num">购方均价 (元/MWh)</th><th class="num">售方总电量 (MWh)</th><th class="num">售方均价 (元/MWh)</th><th class="num">净买入 (MWh)</th></tr></thead><tbody>`;
-            dayMerged.forEach(r => {
-                html += `<tr><td>${r.region}</td><td class="num">${r.buyEnergy.toFixed(1)}</td><td class="num">${r.buyPrice.toFixed(2)}</td><td class="num">${r.sellEnergy.toFixed(1)}</td><td class="num">${r.sellPrice.toFixed(2)}</td><td class="num">${r.net.toFixed(1)}</td></tr>`;
+            rows.forEach(r => {
+                const first = r.isGroup
+                    ? `<td>${r.label}</td>`
+                    : `<td class="indent">${r.label}</td>`;
+                html += `<tr${r.isGroup ? ' class="group-row"' : ''}>${first}`
+                    + `<td class="num">${r.buyE.toFixed(1)}</td><td class="num">${r.buyP.toFixed(2)}</td>`
+                    + `<td class="num">${r.sellE.toFixed(1)}</td><td class="num">${r.sellP.toFixed(2)}</td>`
+                    + `<td class="num">${r.net.toFixed(1)}</td></tr>`;
             });
             html += '</tbody></table>';
             document.getElementById('tableWrap').innerHTML = html;
@@ -828,6 +947,7 @@
         // 四川仅显示「分时段量价」和「最新5日分时段趋势」，其余区块隐藏
         function updateRegionVisibility() {
             const isSichuan = currentRegion === 'sichuan';
+            document.body.classList.toggle('sichuan-tab', isSichuan);
             document.querySelectorAll('.cz-only').forEach(el => {
                 el.style.display = isSichuan ? 'none' : '';
             });
@@ -846,6 +966,8 @@
                 });
                 document.getElementById('tableWrap').innerHTML = '<p class="text-muted">请加载数据</p>';
                 ['kpiBuy', 'kpiSell', 'kpiAvgBuy', 'kpiAvgSell', 'kpiNet'].forEach(id => document.getElementById(id).textContent = '—');
+                resetDelta(['kpiBuyDelta', 'kpiSellDelta', 'kpiAvgBuyDelta', 'kpiAvgSellDelta', 'kpiNetDelta']);
+                document.getElementById('kpiNetCard').className = 'kpi-card';
                 resetRegionKpis();
                 return;
             }
@@ -856,24 +978,8 @@
                 document.getElementById(id).textContent = selectedDate;
             });
 
-            // 全区域合计 KPI
-            const dayBuy = buyRecords.filter(r => r.date === selectedDate);
-            const daySell = sellRecords.filter(r => r.date === selectedDate);
-            const totalBuy = dayBuy.reduce((s, r) => s + r.totalEnergy, 0);
-            const totalSell = daySell.reduce((s, r) => s + r.totalEnergy, 0);
-            const net = totalBuy - totalSell;
-            let buyFee = 0, sellFee = 0;
-            dayBuy.forEach(r => buyFee += r.totalEnergy * r.weightedPrice);
-            daySell.forEach(r => sellFee += r.totalEnergy * r.weightedPrice);
-            const avgBuy = totalBuy > 0 ? buyFee / totalBuy : 0;
-            const avgSell = totalSell > 0 ? sellFee / totalSell : 0;
-
-            document.getElementById('kpiBuy').textContent = totalBuy.toFixed(0);
-            document.getElementById('kpiSell').textContent = totalSell.toFixed(0);
-            document.getElementById('kpiAvgBuy').textContent = avgBuy.toFixed(2);
-            document.getElementById('kpiAvgSell').textContent = avgSell.toFixed(2);
-            document.getElementById('kpiNet').textContent = net.toFixed(0);
-            document.getElementById('kpiNetCard').className = 'kpi-card' + (net >= 0 ? ' net-buy' : ' net-sell');
+            // 全区域合计 KPI（含与前一日对比）
+            renderTotalKpis(selectedDate);
 
             renderRegionKpis(selectedDate);
 
@@ -899,7 +1005,7 @@
             if (currentRegion !== 'sichuan') {
                 const dayMerged = mergedRecords.filter(r => r.date === selectedDate);
                 renderRegionTrends();
-                renderTable(dayMerged, selectedDate);
+                renderTable(dayMerged);
             }
         }
 
@@ -1231,8 +1337,9 @@
             const dayMerged = mergedRecords.filter(r => r.date === currentDate);
             if (dayMerged.length === 0) return;
             let csv = '地区,购方总电量(MWh),购方均价(元/MWh),售方总电量(MWh),售方均价(元/MWh),净买入(MWh)\n';
-            dayMerged.forEach(r => {
-                csv += `${r.region},${r.buyEnergy.toFixed(1)},${r.buyPrice.toFixed(2)},${r.sellEnergy.toFixed(1)},${r.sellPrice.toFixed(2)},${r.net.toFixed(1)}\n`;
+            buildTableRows(dayMerged).forEach(r => {
+                const label = r.isGroup ? r.label : '　　' + r.label;
+                csv += `${label},${r.buyE.toFixed(1)},${r.buyP.toFixed(2)},${r.sellE.toFixed(1)},${r.sellP.toFixed(2)},${r.net.toFixed(1)}\n`;
             });
             const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
