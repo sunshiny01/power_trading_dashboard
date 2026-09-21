@@ -141,6 +141,9 @@
         }
         /* 区域内的分组小标题（如 四川区域购售方趋势） */
         .block-title { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 14px; }
+
+        /* 区块标题下的小注释（统计口径说明） */
+        .block-note { font-size: 12.5px; color: #94a3b8; line-height: 1.7; margin: 0 0 14px; }
         body:not(.sichuan-tab) .region-card > .block-title {
             border-top: 1px dashed #e8edf4;
             margin: 16px 0 14px 0; padding-top: 16px;
@@ -288,6 +291,24 @@
                 <div class="kpi-card"><div class="label">购方综合均价</div><div class="value"><span id="kpiAvgBuy">—</span><span class="delta" id="kpiAvgBuyDelta"></span></div><div class="sub">元/MWh</div></div>
                 <div class="kpi-card"><div class="label">售方综合均价</div><div class="value"><span id="kpiAvgSell">—</span><span class="delta" id="kpiAvgSellDelta"></span></div><div class="sub">元/MWh</div></div>
                 <div class="kpi-card" id="kpiNetCard"><div class="label">净买入</div><div class="value"><span id="kpiNet">—</span><span class="delta" id="kpiNetDelta"></span></div><div class="sub">MWh</div></div>
+            </div>
+
+            <!-- ================= 各区域统计（仅长三角页签） ================= -->
+            <div class="chart-section cz-only">
+                <div class="flex-between">
+                    <h2>📊 各区域统计 <span class="badge" id="badgeRegionStat"></span></h2>
+                </div>
+                <p class="block-note">
+                    统计口径：四川区域＝四川主网＋四川攀西；长三角区域＝苏南＋苏北＋浙江；西北区域＝甘肃东部＋甘肃西部＋青海＋宁夏＋新疆<span id="otherRegionsClause">；其它地区＝<span id="otherRegionsNote">—</span></span>。
+                </p>
+                <div class="chart-grid-2">
+                    <div class="chart-box" id="regionStatChart" style="min-height:420px;"></div>
+                    <div class="chart-box" id="regionNetChart" style="min-height:420px;"></div>
+                </div>
+                <div class="chart-grid-2" style="margin-top:20px;">
+                    <div class="chart-box" id="regionQtyChart" style="min-height:420px;"></div>
+                    <div class="chart-box" id="regionPriceChart" style="min-height:420px;"></div>
+                </div>
             </div>
 
             <!-- ================= 区域一：四川（标题与 KPI 仅长三角页签展示） ================= -->
@@ -528,15 +549,29 @@
         // ================================================================
         // 2. 图表渲染函数
         // ================================================================
+
+        // 统一悬停标签外观：字号 18、白底深字、标签名不截断
+        const hoverLabel = () => ({
+            bgcolor: '#ffffff',
+            bordercolor: '#cbd5e1',
+            font: { size: 18, color: '#1e293b', family: "'Segoe UI','PingFang SC',Roboto,sans-serif" },
+            namelength: -1,
+            align: 'left'
+        });
+
+        // 统一悬停文本：名称 → 坐标 → 加粗数值 + 单位
+        const tplNum = (head, fmt, unit) =>
+            head + '<br>%{x}<br><b>%{y:,' + fmt + '}</b> ' + unit + '<extra></extra>';
+
         function makeDualAxisFig(times, buyE, sellE, buyP, sellP, region, date) {
             const qName = quantityName();
             const qUnit = quantityUnit();
             return {
                 data: [
-                    { x: times, y: buyE, name: '购方' + qName, type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y' },
-                    { x: times, y: sellE, name: '售方' + qName, type: 'bar', marker: { color: '#d62728' }, yaxis: 'y' },
-                    { x: times, y: buyP, name: '购方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4' }, marker: { color: '#1f77b4' }, yaxis: 'y2' },
-                    { x: times, y: sellP, name: '售方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728' }, marker: { color: '#d62728' }, yaxis: 'y2' }
+                    { x: times, y: buyE, name: '购方' + qName, type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y', hovertemplate: tplNum('购方' + qName, '.1f', qUnit) },
+                    { x: times, y: sellE, name: '售方' + qName, type: 'bar', marker: { color: '#d62728' }, yaxis: 'y', hovertemplate: tplNum('售方' + qName, '.1f', qUnit) },
+                    { x: times, y: buyP, name: '购方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4' }, marker: { color: '#1f77b4' }, yaxis: 'y2', hovertemplate: tplNum('购方电价', '.2f', '元/MWh') },
+                    { x: times, y: sellP, name: '售方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728' }, marker: { color: '#d62728' }, yaxis: 'y2', hovertemplate: tplNum('售方电价', '.2f', '元/MWh') }
                 ],
                 layout: {
                     title: { text: `${region} - ${date}`, yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
@@ -544,6 +579,7 @@
                     yaxis: { title: qName + ' (' + qUnit + ')', rangemode: 'tozero', side: 'left' },
                     yaxis2: { title: '电价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
                     legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
+                    hoverlabel: hoverLabel(),
                     height: 400,
                     margin: { l: 60, r: 70, t: 100, b: 60 },
                     barmode: 'group'
@@ -554,6 +590,7 @@
         // 趋势图窗口天数：改这两个常量即可切换天数
         const TREND_DAYS_REGION = 10;   // 长三角 / 西北 区域量价趋势
         const TREND_DAYS_SICHUAN = 5;   // 四川相关趋势（主网·攀西 购售方分时段趋势、买方/卖方电力统计）
+        const TREND_DAYS_SUMMARY = 10;  // 各区域统计：量/价趋势图窗口
 
         // ---------------- 区域分组：四川 / 长三角(苏南·苏北·浙江) / 西北(甘肃·青海·宁夏·新疆) ----------------
         const REGION_GROUPS = [
@@ -729,10 +766,10 @@
                 const latest = buildGroupRecords(group).slice(-TREND_DAYS_REGION);
                 const x = latest.map(r => r.date);
                 const traces = [
-                    { x: x, y: latest.map(r => r.buyEnergy), name: '购方总量', type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y' },
-                    { x: x, y: latest.map(r => r.sellEnergy), name: '售方总量', type: 'bar', marker: { color: '#d62728' }, yaxis: 'y' },
-                    { x: x, y: latest.map(r => r.buyPrice), name: '购方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4', width: 4 }, marker: { color: '#1f77b4' }, yaxis: 'y2' },
-                    { x: x, y: latest.map(r => r.sellPrice), name: '售方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728', width: 4 }, marker: { color: '#d62728' }, yaxis: 'y2' }
+                    { x: x, y: latest.map(r => r.buyEnergy), name: '购方总量', type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y', hovertemplate: tplNum('购方总量', '.1f', 'MWh') },
+                    { x: x, y: latest.map(r => r.sellEnergy), name: '售方总量', type: 'bar', marker: { color: '#d62728' }, yaxis: 'y', hovertemplate: tplNum('售方总量', '.1f', 'MWh') },
+                    { x: x, y: latest.map(r => r.buyPrice), name: '购方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4', width: 4 }, marker: { color: '#1f77b4' }, yaxis: 'y2', hovertemplate: tplNum('购方均价', '.2f', '元/MWh') },
+                    { x: x, y: latest.map(r => r.sellPrice), name: '售方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728', width: 4 }, marker: { color: '#d62728' }, yaxis: 'y2', hovertemplate: tplNum('售方均价', '.2f', '元/MWh') }
                 ];
                 const layout = {
                     title: { text: group.title + ' · 近' + TREND_DAYS_REGION + '天量价趋势', yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
@@ -741,10 +778,21 @@
                     yaxis: { title: '电量 (MWh)', rangemode: 'tozero', side: 'left' },
                     yaxis2: { title: '均价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
                     legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
+                    hoverlabel: hoverLabel(),
                     height: 460,
                     margin: { l: 60, r: 70, t: 100, b: 60 }
                 };
                 Plotly.react(document.getElementById(group.chartId), traces, layout);
+            });
+        }
+
+        // 过滤掉「当天所有时刻取值完全相同」的日期。
+        // 这类数据（整天恒定值）在分时段折线图里只会画出一条横贯全图的直线，
+        // 既没有日内信息、又极易被误读成真实曲线，因此不参与绘制。
+        function keepVaryingDates(dates, valueOf) {
+            return dates.filter(date => {
+                const vals = rawData.filter(r => r['日期'] === date).map(valueOf);
+                return vals.length > 1 && new Set(vals).size > 1;
             });
         }
 
@@ -764,18 +812,20 @@
 
             combos.forEach(({ region, direction, el }) => {
                 const col = `${direction}-${region}出清电量`;
-                const traces = latest.map(date => {
+                const traces = keepVaryingDates(latest, r => r[col] || 0).map(date => {
                     const dayData = rawData.filter(r => r['日期'] === date).sort((a, b) => a['时刻'].localeCompare(b['时刻']));
                     return {
                         x: dayData.map(r => r['时刻']),
                         y: dayData.map(r => r[col] || 0),
-                        mode: 'lines+markers', name: date, type: 'scatter'
+                        mode: 'lines+markers', name: date, type: 'scatter',
+                        hovertemplate: tplNum(date + ' · ' + direction + qName, '.1f', qUnit)
                     };
                 });
                 const layout = {
                     title: { text: `${region} - ${direction}`, yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
                     xaxis: { title: '时刻', tickangle: -30, nticks: 12 },
                     yaxis: { title: qName + ' (' + qUnit + ')', rangemode: 'tozero' },
+                    hoverlabel: hoverLabel(),
                     height: 400,
                     margin: { l: 60, r: 70, t: 100, b: 60 },
                     legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
@@ -806,12 +856,14 @@
             const sortByTime = arr => arr.sort((a, b) => a['时刻'].localeCompare(b['时刻']));
 
             // 卖方子图（独立卡片）
-            const sellTraces = latest.map(date => {
+            const sellValue = r => (r['售方-四川主网出清电量'] || 0) + (r['售方-四川攀西出清电量'] || 0);
+            const sellTraces = keepVaryingDates(latest, sellValue).map(date => {
                 const dayData = sortByTime(rawData.filter(r => r['日期'] === date));
                 return {
                     x: dayData.map(r => r['时刻']),
-                    y: dayData.map(r => (r['售方-四川主网出清电量'] || 0) + (r['售方-四川攀西出清电量'] || 0)),
-                    mode: 'lines+markers', name: date, type: 'scatter'
+                    y: dayData.map(sellValue),
+                    mode: 'lines+markers', name: date, type: 'scatter',
+                    hovertemplate: tplNum(date + ' · 卖方电力', '.1f', qUnit)
                 };
             });
             Plotly.react(sellEl, sellTraces, {
@@ -819,17 +871,20 @@
                 autosize: true,
                 xaxis: { title: '时刻', tickangle: -30, nticks: 10 },
                 yaxis: { title: '卖方电力 (' + qUnit + ')', rangemode: 'tozero' },
+                hoverlabel: hoverLabel(),
                 height: 380, margin: { l: 60, r: 60, t: 40, b: 70 },
                 legend: { orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center', font: { size: 10 } }
             });
 
             // 买方子图（独立卡片）
-            const buyTraces = latest.map(date => {
+            const buyValue = r => (r['购方-四川主网出清电量'] || 0) + (r['购方-四川攀西出清电量'] || 0);
+            const buyTraces = keepVaryingDates(latest, buyValue).map(date => {
                 const dayData = sortByTime(rawData.filter(r => r['日期'] === date));
                 return {
                     x: dayData.map(r => r['时刻']),
-                    y: dayData.map(r => (r['购方-四川主网出清电量'] || 0) + (r['购方-四川攀西出清电量'] || 0)),
-                    mode: 'lines+markers', name: date, type: 'scatter'
+                    y: dayData.map(buyValue),
+                    mode: 'lines+markers', name: date, type: 'scatter',
+                    hovertemplate: tplNum(date + ' · 买方电力', '.1f', qUnit)
                 };
             });
             Plotly.react(buyEl, buyTraces, {
@@ -837,6 +892,7 @@
                 autosize: true,
                 xaxis: { title: '时刻', tickangle: -30, nticks: 10 },
                 yaxis: { title: '买方电力 (' + qUnit + ')', rangemode: 'tozero' },
+                hoverlabel: hoverLabel(),
                 height: 380, margin: { l: 60, r: 60, t: 40, b: 70 },
                 legend: { orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center', font: { size: 10 } }
             });
@@ -894,6 +950,174 @@
             }
 
             return rows;
+        }
+
+        // 各区域统计（当日）：区域级汇总（不含全区域合计，合计见顶部 KPI 行）
+        function regionSummaryRows(selectedDate) {
+            const dayMerged = mergedRecords.filter(r => r.date === selectedDate);
+            const rows = [];
+            const grouped = new Set();
+            REGION_GROUPS.forEach(group => {
+                const recs = group.members
+                    .map(name => dayMerged.find(r => r.region === name))
+                    .filter(Boolean);
+                if (recs.length === 0) return;
+                group.members.forEach(name => grouped.add(name));
+                rows.push(Object.assign({ label: group.title }, sumOfRecords(recs)));
+            });
+            const others = dayMerged.filter(r => !grouped.has(r.region));
+            if (others.length > 0) {
+                rows.push(Object.assign({ label: '其它地区' }, sumOfRecords(others)));
+            }
+            return rows;
+        }
+
+        // 「其它地区」由哪些区域组成（未归入任何分组的区域，取全量数据求并集）
+        function otherRegionNames() {
+            const grouped = new Set();
+            REGION_GROUPS.forEach(g => g.members.forEach(m => grouped.add(m)));
+            return [...new Set(mergedRecords.map(r => r.region))].filter(n => !grouped.has(n));
+        }
+
+        // 统计口径注释里的「其它地区」部分随数据自动更新
+        function renderRegionScopeNote() {
+            const clause = document.getElementById('otherRegionsClause');
+            const names = otherRegionNames();
+            if (!clause) return;
+            if (names.length === 0) {
+                clause.style.display = 'none';
+            } else {
+                clause.style.display = '';
+                document.getElementById('otherRegionsNote').textContent = names.join('+');
+            }
+        }
+
+        function renderRegionSummary(selectedDate) {
+            const elStat = document.getElementById('regionStatChart');
+            const elNet = document.getElementById('regionNetChart');
+            const elQty = document.getElementById('regionQtyChart');
+            const elPrice = document.getElementById('regionPriceChart');
+            const rows = regionSummaryRows(selectedDate);
+            const titleStyle = { yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } };
+
+            if (rows.length === 0) {
+                const empty = { height: 420, annotations: [{ text: '该日期无交易数据', showarrow: false }] };
+                Plotly.react(elStat, [], empty);
+                Plotly.react(elNet, [], empty);
+                Plotly.react(elQty, [], empty);
+                Plotly.react(elPrice, [], empty);
+                return;
+            }
+
+            const labels = rows.map(r => r.label);
+
+            // 左图：量（柱，左轴）+ 价（折线，右轴）
+            Plotly.react(elStat, [
+                { x: labels, y: rows.map(r => r.buyE), name: '购方总量', type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y', hovertemplate: tplNum('购方总量', '.1f', 'MWh') },
+                { x: labels, y: rows.map(r => r.sellE), name: '售方总量', type: 'bar', marker: { color: '#d62728' }, yaxis: 'y', hovertemplate: tplNum('售方总量', '.1f', 'MWh') },
+                { x: labels, y: rows.map(r => r.buyP), name: '购方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4', width: 4 }, marker: { color: '#1f77b4' }, yaxis: 'y2', hovertemplate: tplNum('购方均价', '.2f', '元/MWh') },
+                { x: labels, y: rows.map(r => r.sellP), name: '售方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728', width: 4 }, marker: { color: '#d62728' }, yaxis: 'y2', hovertemplate: tplNum('售方均价', '.2f', '元/MWh') }
+            ], {
+                title: Object.assign({ text: '各区域量价对比' }, titleStyle),
+                barmode: 'group',
+                xaxis: { title: '区域', type: 'category', tickangle: 0, tickfont: { size: 11 } },
+                yaxis: { title: '电量 (MWh)', rangemode: 'tozero', side: 'left' },
+                yaxis2: { title: '均价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
+                legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
+                hoverlabel: hoverLabel(),
+                height: 420,
+                margin: { l: 70, r: 70, t: 100, b: 60 }
+            });
+
+            // 右图：净买入排名（横向条形，正=净购入绿 / 负=净售出红）
+            const sorted = rows.slice().sort((a, b) => a.net - b.net);
+            const nets = sorted.map(r => r.net);
+            const lo = Math.min(0, ...nets);
+            const hi = Math.max(0, ...nets);
+            const span = (hi - lo) || 1;
+            const padLow = lo < 0 ? span * 0.18 : span * 0.05;
+            Plotly.react(elNet, [{
+                x: nets,
+                y: sorted.map(r => r.label),
+                type: 'bar', orientation: 'h',
+                marker: { color: sorted.map(r => r.net >= 0 ? '#22c55e' : '#ef4444') },
+                text: sorted.map(r => r.net.toFixed(0)),
+                textposition: 'outside',
+                cliponaxis: false,
+                hovertemplate: '%{y}<br>净买入 <b>%{x:,.1f}</b> MWh<extra></extra>'
+            }], {
+                title: Object.assign({ text: '各区域净买入' }, titleStyle),
+                hoverlabel: hoverLabel(),
+                xaxis: {
+                    title: '净买入 (MWh)', zeroline: true, zerolinewidth: 2,
+                    zerolinecolor: '#94a3b8',
+                    range: [lo - padLow, hi + span * 0.22]
+                },
+                yaxis: { automargin: true, tickfont: { size: 12 } },
+                height: 420, showlegend: false,
+                margin: { l: 110, r: 70, t: 100, b: 60 }
+            });
+
+            // 下图两张：各区域近 N 天电量趋势 / 均价趋势
+            // 颜色按区域，实线=购方，虚线=售方；「其它地区」默认不显示，可在图例中点开
+            const trendDates = allDates.slice(-TREND_DAYS_SUMMARY);
+            const rowsByDate = {};
+            trendDates.forEach(d => { rowsByDate[d] = regionSummaryRows(d); });
+            const palette = ['#636efa', '#EF553B', '#00cc96', '#ab63fa', '#FFA15A'];
+            const shortName = label => label.replace(/区域$/, '');
+            const trendLayout = () => ({
+                xaxis: {
+                    title: '日期', type: 'category', tickangle: 0, tickfont: { size: 10 },
+                    // 半宽卡片里 10 个完整日期放不下，刻度显示 MM-DD，hover 仍是完整日期
+                    tickmode: 'array',
+                    tickvals: trendDates,
+                    ticktext: trendDates.map(d => d.slice(5))
+                },
+                legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
+                hoverlabel: hoverLabel(),
+                height: 420,
+                margin: { l: 70, r: 70, t: 100, b: 60 }
+            });
+
+            const buildTrendTraces = (buyKey, sellKey, buyLabel, sellLabel, fmt, unit) => {
+                const traces = [];
+                [
+                    { key: buyKey, suffix: '·购方', label: buyLabel, dash: 'solid', size: 7 },
+                    { key: sellKey, suffix: '·售方', label: sellLabel, dash: 'dash', size: 6 }
+                ].forEach(s => {
+                    labels.forEach((label, i) => {
+                        const color = palette[i % palette.length];
+                        traces.push({
+                            x: trendDates,
+                            y: trendDates.map(d => {
+                                const r = rowsByDate[d].find(x => x.label === label);
+                                return r ? r[s.key] : null;
+                            }),
+                            name: shortName(label) + s.suffix,
+                            visible: label === '其它地区' ? 'legendonly' : true,
+                            type: 'scatter', mode: 'lines+markers',
+                            line: { color: color, width: 3, dash: s.dash },
+                            marker: { color: color, size: s.size },
+                            hovertemplate: tplNum(label + ' · ' + s.label, fmt, unit)
+                        });
+                    });
+                });
+                return traces;
+            };
+
+            // 量趋势
+            Plotly.react(elQty, buildTrendTraces('buyE', 'sellE', '购方总量', '售方总量', '.1f', 'MWh'),
+                Object.assign(trendLayout(), {
+                    title: Object.assign({ text: '各区域近' + TREND_DAYS_SUMMARY + '天电量趋势' }, titleStyle),
+                    yaxis: { title: '电量 (MWh)', rangemode: 'tozero' }
+                }));
+
+            // 价趋势
+            Plotly.react(elPrice, buildTrendTraces('buyP', 'sellP', '购方均价', '售方均价', '.2f', '元/MWh'),
+                Object.assign(trendLayout(), {
+                    title: Object.assign({ text: '各区域近' + TREND_DAYS_SUMMARY + '天均价趋势' }, titleStyle),
+                    yaxis: { title: '均价 (元/MWh)' }
+                }));
         }
 
         function renderTable(dayMerged) {
@@ -974,7 +1198,7 @@
 
             document.getElementById('titleMain').textContent = '四川主网';
             document.getElementById('titlePanxi').textContent = '四川攀西';
-            ['badgeMain', 'badgePanxi', 'badgeSichuan', 'badgeTrends', 'badgeGroupA', 'badgeGroupB', 'badgeTable'].forEach(id => {
+            ['badgeMain', 'badgePanxi', 'badgeSichuan', 'badgeTrends', 'badgeRegionStat', 'badgeGroupA', 'badgeGroupB', 'badgeTable'].forEach(id => {
                 document.getElementById(id).textContent = selectedDate;
             });
 
@@ -1004,6 +1228,8 @@
             // 四川只显示分时段量价与最新5日分时段趋势，跳过其余汇总图表
             if (currentRegion !== 'sichuan') {
                 const dayMerged = mergedRecords.filter(r => r.date === selectedDate);
+                renderRegionScopeNote();
+                renderRegionSummary(selectedDate);
                 renderRegionTrends();
                 renderTable(dayMerged);
             }
