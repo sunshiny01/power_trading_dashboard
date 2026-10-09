@@ -223,6 +223,63 @@
         }
         .toast.show { opacity: 1; pointer-events: auto; }
         .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+        /* ====== 返回顶部悬浮钮：固定在右下角，滚动超过一屏才出现 ======
+           默认白底蓝箭头（不抢视觉），悬停/按下才变蓝底白箭头 */
+        .to-top {
+            position: fixed; right: 24px; bottom: 24px; z-index: 900;
+            width: 46px; height: 46px; padding: 0; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: #ffffff; color: #3b82f6;
+            border: 1px solid #e2e8f0; cursor: pointer;
+            font-size: 20px; font-weight: 700; line-height: 1; font-family: inherit;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+            opacity: 0; visibility: hidden; transform: translateY(8px);
+            transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s,
+                        background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+        .to-top.show { opacity: 1; visibility: visible; transform: translateY(0); }
+        .to-top:hover {
+            background: #3b82f6; color: #fff; border-color: #3b82f6;
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+        }
+        .to-top:active {
+            background: #2563eb; border-color: #2563eb;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.45);
+        }
+
+        /* ====== 左侧悬浮导航：纯浮层，不占布局（正文不被推走）；
+           默认只露一个图标，悬停展开文字 ====== */
+        .side-nav {
+            position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 900;
+            display: none; flex-direction: column; gap: 4px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #e2e8f0; border-radius: 14px;
+            padding: 6px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+            -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+        }
+        .side-nav-item {
+            display: none; align-items: center; justify-content: center; gap: 8px;
+            width: 46px; height: 40px; padding: 0;
+            border: none; border-radius: 10px;
+            background: transparent; color: #475569;
+            font-size: 17px; font-weight: 600; font-family: inherit;
+            white-space: nowrap; overflow: hidden; cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+        /* 导航项按页签分开显示：长三角页签列汇总/各区域，四川页签列四川自己的分区。
+           每一项在当前页面上都真实存在，不会点了却跳到另一个页签去。 */
+        body:not(.sichuan-tab) .side-nav-item[data-nav-tab="changzhou"] { display: flex; }
+        body.sichuan-tab .side-nav-item[data-nav-tab="sichuan"] { display: flex; }
+        .side-nav-text { display: none; font-size: 13px; }
+        .side-nav:hover .side-nav-item { width: auto; padding: 0 12px; justify-content: flex-start; }
+        .side-nav:hover .side-nav-text { display: inline; }
+        .side-nav-item:hover { background: #eff6ff; color: #2563eb; }
+        .side-nav-item.active { background: #3b82f6; color: #fff; }
+        @media (min-width: 1100px) { .side-nav { display: flex; } }
+        @media (max-width: 900px) {
+            .to-top { right: 14px; bottom: 14px; width: 42px; height: 42px; font-size: 18px; }
+        }
     </style>
 </head>
 <body>
@@ -282,6 +339,17 @@
             <div class="status-msg" id="globalStatus" style="font-weight:500;">请加载任一数据</div>
         </div>
 
+        <!-- ================= 四川区域 · 出清（仅长三角页签展示；数据取长三角那一路的四川主网/攀西） ================= -->
+        <div class="chart-section cz-only" id="sectionSichuanDA">
+            <div class="flex-between">
+                <h2>⚡ 四川区域 · <span id="daMarketWord">汇总</span>出清 <span class="badge" id="badgeSichuanDA"></span></h2>
+            </div>
+            <p class="block-note">
+                统计口径：长三角数据中 四川主网、四川攀西 的购方与售方出清 —— 柱＝电量 (MWh)，线＝电价 (元/MWh)；口径随顶部「市场」选择器切换。
+            </p>
+            <div class="chart-box" id="chartSichuanDA" style="min-height:450px;"></div>
+        </div>
+
         <div id="panel-main">
 
             <!-- ================= 全区域合计（仅长三角页签展示） ================= -->
@@ -294,7 +362,7 @@
             </div>
 
             <!-- ================= 各区域统计（仅长三角页签） ================= -->
-            <div class="chart-section cz-only">
+            <div class="chart-section cz-only" id="sectionRegionStat">
                 <div class="flex-between">
                     <h2>📊 各区域统计 <span class="badge" id="badgeRegionStat"></span></h2>
                 </div>
@@ -312,7 +380,7 @@
             </div>
 
             <!-- ================= 区域一：四川（标题与 KPI 仅长三角页签展示） ================= -->
-            <div class="region-card">
+            <div class="region-card" id="sectionSichuan">
                 <div class="region-head cz-only">
                     <div class="region-title">🏔️ 四川区域</div>
                     <div class="region-note">统计口径：四川主网、四川攀西 <span class="badge" id="badgeSichuan"></span></div>
@@ -325,25 +393,25 @@
                     <div class="kpi-card" id="scNetCard"><div class="label">净买入</div><div class="value"><span id="scNet">—</span><span class="delta" id="scNetDelta"></span></div><div class="sub">MWh</div></div>
                 </div>
 
-                <div class="chart-section">
+                <div class="chart-section" id="secMain">
                     <h2>⏰ <span id="titleMain">四川主网</span> 分时段量价 <span class="badge" id="badgeMain"></span></h2>
                     <div class="chart-box" id="chartMain"></div>
                 </div>
-                <div class="chart-section">
+                <div class="chart-section" id="secPanxi">
                     <h2>⏰ <span id="titlePanxi">四川攀西</span> 分时段量价 <span class="badge" id="badgePanxi"></span></h2>
                     <div class="chart-box" id="chartPanxi"></div>
                 </div>
 
-                <div class="chart-section sichuan-only">
+                <div class="chart-section sichuan-only" id="secBuyStat">
                     <h2>🔵 买方电力统计</h2>
                     <div class="chart-box" id="chartBuySellStatBuy" style="min-height:380px;"></div>
                 </div>
-                <div class="chart-section sichuan-only">
+                <div class="chart-section sichuan-only" id="secSellStat">
                     <h2>🔴 卖方电力统计</h2>
                     <div class="chart-box" id="chartBuySellStatSell" style="min-height:380px;"></div>
                 </div>
 
-                <h2 class="block-title">📈 四川区域（主网·攀西）购售方 <span id="trendWindowLabel">近5天</span>分时段趋势 <span class="badge" id="badgeTrends"></span></h2>
+                <h2 class="block-title" id="secTrends">📈 四川区域（主网·攀西）购售方 <span id="trendWindowLabel">近5天</span>分时段趋势 <span class="badge" id="badgeTrends"></span></h2>
                 <div class="chart-grid-2">
                     <div class="chart-section"><div class="chart-box-sm" id="trend1" style="min-height:380px;"></div></div>
                     <div class="chart-section"><div class="chart-box-sm" id="trend2" style="min-height:380px;"></div></div>
@@ -353,7 +421,7 @@
             </div>
 
             <!-- ================= 区域二：长三角 ================= -->
-            <div class="region-card cz-only">
+            <div class="region-card cz-only" id="sectionChangzhou">
                 <div class="region-head">
                     <div class="region-title">🌉 长三角区域</div>
                     <div class="region-note">统计口径：苏南、苏北、浙江 <span class="badge" id="badgeGroupA"></span></div>
@@ -369,7 +437,7 @@
             </div>
 
             <!-- ================= 区域三：西北 ================= -->
-            <div class="region-card cz-only">
+            <div class="region-card cz-only" id="sectionNorthwest">
                 <div class="region-head">
                     <div class="region-title">🏜️ 西北区域</div>
                     <div class="region-note">统计口径：甘肃东部、甘肃西部、青海、宁夏、新疆 <span class="badge" id="badgeGroupB"></span></div>
@@ -395,6 +463,27 @@
     </div>
 
     <div class="toast" id="toast"></div>
+
+    <!-- 左侧悬浮导航：纯浮层不占布局，默认只露图标、悬停展开文字。
+         导航项按页签分开（data-nav-tab 控制显隐）：
+         长三角页签列汇总/各区域，四川页签列四川自己的分区，
+         保证每一项在当前页面上都真实存在。 -->
+    <nav class="side-nav" id="sideNav" aria-label="页面导航">
+        <!-- 长三角页签 -->
+        <button class="side-nav-item" type="button" data-nav-tab="changzhou" data-target="sectionRegionStat" title="各区域统计"><span>📊</span><span class="side-nav-text">各区域统计</span></button>
+        <button class="side-nav-item" type="button" data-nav-tab="changzhou" data-target="sectionSichuan" title="四川区域"><span>🏔️</span><span class="side-nav-text">四川区域</span></button>
+        <button class="side-nav-item" type="button" data-nav-tab="changzhou" data-target="sectionChangzhou" title="长三角区域"><span>🌉</span><span class="side-nav-text">长三角区域</span></button>
+        <button class="side-nav-item" type="button" data-nav-tab="changzhou" data-target="sectionNorthwest" title="西北区域"><span>🏜️</span><span class="side-nav-text">西北区域</span></button>
+        <!-- 四川页签 -->
+        <button class="side-nav-item" type="button" data-nav-tab="sichuan" data-target="secMain" title="四川主网 分时段量价"><span>⏰</span><span class="side-nav-text">四川主网 分时段量价</span></button>
+        <button class="side-nav-item" type="button" data-nav-tab="sichuan" data-target="secPanxi" title="四川攀西 分时段量价"><span>⏱️</span><span class="side-nav-text">四川攀西 分时段量价</span></button>
+        <button class="side-nav-item" type="button" data-nav-tab="sichuan" data-target="secBuyStat" title="买方电力统计"><span>🔵</span><span class="side-nav-text">买方电力统计</span></button>
+        <button class="side-nav-item" type="button" data-nav-tab="sichuan" data-target="secSellStat" title="卖方电力统计"><span>🔴</span><span class="side-nav-text">卖方电力统计</span></button>
+        <button class="side-nav-item" type="button" data-nav-tab="sichuan" data-target="secTrends" title="购售方分时段趋势"><span>📈</span><span class="side-nav-text">购售方分时段趋势</span></button>
+    </nav>
+
+    <!-- 返回顶部：滚动超过一屏后淡入（两个页签都有） -->
+    <button class="to-top" id="toTopBtn" type="button" aria-label="返回顶部" title="返回顶部">↑</button>
 
     <script>
         // ================================================================
@@ -494,7 +583,11 @@
             });
 
             return finalMerged.map(row => {
-                const newRow = { '日期': row['日期'], '时刻': row['时刻'] };
+                // 时刻在入库这一步就裁到分钟：源数据是「00:15:00」，图上不该带秒
+                const newRow = {
+                    '日期': row['日期'],
+                    '时刻': String(row['时刻']).replace(/^(\d{1,2}:\d{2}).*$/, '$1')
+                };
                 baseEnergyCols.forEach(col => {
                     const priceCol = col.replace('电量', '电价');
                     const eDA = row[col + '_da'] || 0;
@@ -563,28 +656,151 @@
         const tplNum = (head, fmt, unit) =>
             head + '<br>%{x}<br><b>%{y:,' + fmt + '}</b> ' + unit + '<extra></extra>';
 
+        // ================================================================
+        // 统一空状态：把 Plotly.react 包一层 —— 任何一张图，只要它所有系列的值里
+        // 没有一个非 0 数字（全 0，或者压根没数据），就自动在画布正中标一句说明。
+        // 各渲染函数自己写的空状态文案会被沿用，只是把坐标摆正到画布中央；
+        // 有数据时显式清空，免得上一张空图的说明赖在新图上。
+        // 这样「分时段量价」上定的规则，全部图表自动一致，不必逐个渲染函数去改。
+        // ================================================================
+        const plotlyReactRaw = Plotly.react.bind(Plotly);
+        Plotly.react = function (el, data, layout, config) {
+            const lay = Object.assign({}, layout || {});
+            // 数值可能落在 y（竖着画），也可能落在 x（净买入那张横向条形图就是），两边都要看
+            const nums = arr => Array.isArray(arr) && arr.some(v => typeof v === 'number' && isFinite(v) && v !== 0);
+            const hasData = (data || []).some(tr => nums(tr.y) || nums(tr.x));
+            const manual = (lay.annotations || []).filter(a => a && a.text);
+            lay.annotations = hasData ? [] : (manual.length
+                ? manual.map(a => Object.assign({}, a, { x: 0.5, y: 0.5, xref: 'paper', yref: 'paper' }))
+                : [{
+                    text: '该日期无数据', showarrow: false,
+                    x: 0.5, y: 0.5, xref: 'paper', yref: 'paper',
+                    font: { size: 15, color: '#94a3b8' }
+                }]);
+            return plotlyReactRaw(el, data, lay, config);
+        };
+
+
         function makeDualAxisFig(times, buyE, sellE, buyP, sellP, region, date) {
             const qName = quantityName();
             const qUnit = quantityUnit();
+            // 统一悬停（hovermode: 'x unified'）下，每行前面的名字由 <extra> 提供，
+            // 数值格式仍是「加粗数值 + 单位」，与「四川区域 · 出清」那张图保持一致。
+            const eTip = n => '<b>%{y:,.1f}</b> ' + qUnit + '<extra>' + n + '</extra>';
+            const pTip = n => '<b>%{y:,.2f}</b> 元/MWh<extra>' + n + '</extra>';
+
+            // 一整天都没有数据的系列：图照画（图例、轴范围、柱子都不动），
+            // 只是不进悬停浮框 —— 全天都是 0，列出来纯粹是干扰。
+            // 电量按 > 0 判（0 就是没成交）；电价按 ≠ 0 判，免得把可能全负价的时段误判成没数据。
+            const hasE = arr => (arr || []).some(v => typeof v === 'number' && isFinite(v) && v > 0);
+            const hasP = arr => (arr || []).some(v => typeof v === 'number' && isFinite(v) && v !== 0);
+            const tip = (on, tpl) => on ? { hovertemplate: tpl } : { hoverinfo: 'skip' };
+
             return {
                 data: [
-                    { x: times, y: buyE, name: '购方' + qName, type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y', hovertemplate: tplNum('购方' + qName, '.1f', qUnit) },
-                    { x: times, y: sellE, name: '售方' + qName, type: 'bar', marker: { color: '#d62728' }, yaxis: 'y', hovertemplate: tplNum('售方' + qName, '.1f', qUnit) },
-                    { x: times, y: buyP, name: '购方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4' }, marker: { color: '#1f77b4' }, yaxis: 'y2', hovertemplate: tplNum('购方电价', '.2f', '元/MWh') },
-                    { x: times, y: sellP, name: '售方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728' }, marker: { color: '#d62728' }, yaxis: 'y2', hovertemplate: tplNum('售方电价', '.2f', '元/MWh') }
+                    Object.assign({ x: times, y: buyE, name: '购方' + qName, type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y' }, tip(hasE(buyE), eTip('购方' + qName))),
+                    Object.assign({ x: times, y: sellE, name: '售方' + qName, type: 'bar', marker: { color: '#d62728' }, yaxis: 'y' }, tip(hasE(sellE), eTip('售方' + qName))),
+                    Object.assign({ x: times, y: buyP, name: '购方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4' }, marker: { color: '#1f77b4' }, yaxis: 'y2' }, tip(hasP(buyP), pTip('购方电价'))),
+                    Object.assign({ x: times, y: sellP, name: '售方电价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728' }, marker: { color: '#d62728' }, yaxis: 'y2' }, tip(hasP(sellP), pTip('售方电价')))
                 ],
                 layout: {
-                    title: { text: `${region} - ${date}`, yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
+                    title: { text: `${region} - ${date}`, yref: 'container', y: 0.95, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
                     xaxis: { title: '时刻', tickangle: -45 },
                     yaxis: { title: qName + ' (' + qUnit + ')', rangemode: 'tozero', side: 'left' },
                     yaxis2: { title: '电价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
                     legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
-                    hoverlabel: hoverLabel(),
-                    height: 400,
-                    margin: { l: 60, r: 70, t: 100, b: 60 },
+                    hovermode: 'x unified',          // 一个时刻 → 一次列出该时刻的全部数据（购/售 × 量/价）
+                    hoverlabel: Object.assign(hoverLabel(), { font: { size: 13 } }),
+                    height: 450,
+                    // 上边距收紧：标题钉在容器顶部、图例贴绘图区上沿，中间不用留 100px；
+                    // 下边距加大：45° 斜排的时刻标签 + 下面的「时刻」轴标题需要各自的空间
+                    margin: { l: 60, r: 70, t: 70, b: 95 },
                     barmode: 'group'
                 }
             };
+        }
+
+        // ================================================================
+        // 四川区域「出清」：放在长三角页签顶部，一张图看全 四川主网 / 四川攀西 的购方与售方。
+        // 风格沿用四川页签的「分时段量价」：电量（柱）+ 电价（线）同色、双轴、实线、图例在上、标题在内；
+        // 四种组合各给一个明显不同的色相 —— 冷色系（蓝/绿）是购方，暖色系（红/橙）是售方。
+        // 数据取长三角那一路里 四川主网 / 四川攀西 的出清列，跟着「市场」与日期选择器变。
+        // ================================================================
+        const DA_COMBOS = [
+            { base: '购方-四川主网', label: '主网购方', color: '#1f77b4' },
+            { base: '购方-四川攀西', label: '攀西购方', color: '#2ca02c' },
+            { base: '售方-四川主网', label: '主网售方', color: '#d62728' },
+            { base: '售方-四川攀西', label: '攀西售方', color: '#ff7f0e' }
+        ];
+
+        function renderSichuanDA(selectedDate) {
+            const el = document.getElementById('chartSichuanDA');
+            if (!el) return;
+
+            const market = document.getElementById('marketSelector').value;
+            const word = document.getElementById('daMarketWord');
+            if (word) word.textContent = market;
+            const badge = document.getElementById('badgeSichuanDA');
+            if (badge) badge.textContent = selectedDate || '—';
+
+            const empty = (msg) => Plotly.react(el, [], {
+                height: 450,
+                annotations: [{ text: msg, showarrow: false }]
+            });
+
+            // 跟着市场选择器走：汇总 = 日前+日内（rawData 已按选择合并）
+            const day = (rawData || []).filter(r => r['日期'] === selectedDate)
+                .sort((a, b) => String(a['时刻']).localeCompare(String(b['时刻'])));
+            if (day.length === 0) { empty('请加载数据'); return; }
+
+            // 时刻已在数据入口裁到分钟，这里直接用
+            const times = day.map(r => r['时刻']);
+            const num = v => (typeof v === 'number' && isFinite(v)) ? v : 0;
+            const qName = quantityName(), qUnit = quantityUnit();
+
+            // 四种组合各一组「电量 + 电价」；整组都没数据的跳过，图例里不留空条目
+            const combos = DA_COMBOS.map(c => ({
+                label: c.label,
+                color: c.color,
+                eVals: day.map(r => num(r[c.base + '出清电量'])),
+                pVals: day.map(r => num(r[c.base + '出清电价']))
+            })).filter(c => c.eVals.some(v => v > 0) || c.pVals.some(v => v > 0));
+
+            if (combos.length === 0) { empty('该日期无四川主网/攀西数据'); return; }
+
+            // 顺序：折线（电价）在前、柱子（电量）在后。
+            // Plotly 里 scatter 层恒在 bar 层之上，折线本来就压在柱子上。
+            // 悬停用 x unified：鼠标停在某一时刻，该时刻所有组合的量与价一起列出来。
+            // 这种模式下 x 由浮框标题统一给出，每行只需「数值 + 单位」，行名放在 <extra> 里。
+            const data = [];
+            combos.forEach(c => data.push({          // 电价（线）：与同组柱同色，实线
+                x: times, y: c.pVals, name: c.label + '电价', type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: c.color },
+                marker: { color: c.color },
+                yaxis: 'y2',
+                hovertemplate: '<b>%{y:,.2f}</b> 元/MWh<extra>' + c.label + '电价</extra>'
+            }));
+            combos.forEach(c => data.push({          // 电量（柱）：四种组合四个颜色
+                x: times, y: c.eVals, name: c.label + '电量', type: 'bar',
+                marker: { color: c.color }, yaxis: 'y',
+                hovertemplate: '<b>%{y:,.1f}</b> ' + qUnit + '<extra>' + c.label + '电量</extra>'
+            }));
+
+            Plotly.react(el, data, {
+                title: { text: `四川区域 - ${selectedDate}`, yref: 'container', y: 0.95, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
+                barmode: 'group',
+                hovermode: 'x unified',              // 一个时刻 → 列出该时刻全部数据
+                xaxis: { title: '时刻', tickangle: -45 },
+                yaxis: { title: qName + ' (' + qUnit + ')', rangemode: 'tozero', side: 'left' },
+                yaxis2: { title: '电价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
+                legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
+                hoverlabel: Object.assign(hoverLabel(), { font: { size: 13 } }),
+                height: 450,
+                // 上边距收紧：标题固定在容器顶部，图例紧贴绘图区上沿，中间不需要留 100px 的空白
+                // 下边距加大：45° 斜着的时刻标签 + 下面的「时刻」轴标题原本快贴到一起了
+                margin: { l: 60, r: 70, t: 70, b: 95 }
+            });
         }
 
         // 趋势图窗口天数：改这两个常量即可切换天数
@@ -772,7 +988,7 @@
                     { x: x, y: latest.map(r => r.sellPrice), name: '售方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728', width: 4 }, marker: { color: '#d62728' }, yaxis: 'y2', hovertemplate: tplNum('售方均价', '.2f', '元/MWh') }
                 ];
                 const layout = {
-                    title: { text: group.title + ' · 近' + TREND_DAYS_REGION + '天量价趋势', yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
+                    title: { text: group.title + ' · 近' + TREND_DAYS_REGION + '天量价趋势', yref: 'container', y: 0.95, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
                     barmode: 'group',
                     xaxis: { title: '日期', type: 'category', tickangle: 0, tickfont: { size: 11 } },
                     yaxis: { title: '电量 (MWh)', rangemode: 'tozero', side: 'left' },
@@ -780,7 +996,7 @@
                     legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
                     hoverlabel: hoverLabel(),
                     height: 460,
-                    margin: { l: 60, r: 70, t: 100, b: 60 }
+                    margin: { l: 60, r: 70, t: 70, b: 60 }
                 };
                 Plotly.react(document.getElementById(group.chartId), traces, layout);
             });
@@ -822,12 +1038,12 @@
                     };
                 });
                 const layout = {
-                    title: { text: `${region} - ${direction}`, yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
+                    title: { text: `${region} - ${direction}`, yref: 'container', y: 0.95, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
                     xaxis: { title: '时刻', tickangle: -30, nticks: 12 },
                     yaxis: { title: qName + ' (' + qUnit + ')', rangemode: 'tozero' },
                     hoverlabel: hoverLabel(),
-                    height: 400,
-                    margin: { l: 60, r: 70, t: 100, b: 60 },
+                    height: 440,
+                    margin: { l: 60, r: 70, t: 70, b: 85 },
                     legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
                     showlegend: true
                 };
@@ -998,7 +1214,11 @@
             const elQty = document.getElementById('regionQtyChart');
             const elPrice = document.getElementById('regionPriceChart');
             const rows = regionSummaryRows(selectedDate);
-            const titleStyle = { yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } };
+            // 上两张（量价对比 / 净买入）图例只有 4 项，标题可以贴近图例；
+            // 下两张（电量趋势 / 均价趋势）图例是一整排区域、最多 10 项还会折行，
+            // 标题保持原位，免得跟图例挤在一起
+            const titleStyle = { yref: 'container', y: 0.95, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } };
+            const titleStyleLoose = { yref: 'container', y: 0.97, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } };
 
             if (rows.length === 0) {
                 const empty = { height: 420, annotations: [{ text: '该日期无交易数据', showarrow: false }] };
@@ -1026,7 +1246,7 @@
                 legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
                 hoverlabel: hoverLabel(),
                 height: 420,
-                margin: { l: 70, r: 70, t: 100, b: 60 }
+                margin: { l: 70, r: 70, t: 70, b: 60 }
             });
 
             // 右图：净买入排名（横向条形，正=净购入绿 / 负=净售出红）
@@ -1055,7 +1275,7 @@
                 },
                 yaxis: { automargin: true, tickfont: { size: 12 } },
                 height: 420, showlegend: false,
-                margin: { l: 110, r: 70, t: 100, b: 60 }
+                margin: { l: 110, r: 70, t: 70, b: 60 }
             });
 
             // 下图两张：各区域近 N 天电量趋势 / 均价趋势
@@ -1108,14 +1328,14 @@
             // 量趋势
             Plotly.react(elQty, buildTrendTraces('buyE', 'sellE', '购方总量', '售方总量', '.1f', 'MWh'),
                 Object.assign(trendLayout(), {
-                    title: Object.assign({ text: '各区域近' + TREND_DAYS_SUMMARY + '天电量趋势' }, titleStyle),
+                    title: Object.assign({ text: '各区域近' + TREND_DAYS_SUMMARY + '天电量趋势' }, titleStyleLoose),
                     yaxis: { title: '电量 (MWh)', rangemode: 'tozero' }
                 }));
 
             // 价趋势
             Plotly.react(elPrice, buildTrendTraces('buyP', 'sellP', '购方均价', '售方均价', '.2f', '元/MWh'),
                 Object.assign(trendLayout(), {
-                    title: Object.assign({ text: '各区域近' + TREND_DAYS_SUMMARY + '天均价趋势' }, titleStyle),
+                    title: Object.assign({ text: '各区域近' + TREND_DAYS_SUMMARY + '天均价趋势' }, titleStyleLoose),
                     yaxis: { title: '均价 (元/MWh)' }
                 }));
         }
@@ -1228,6 +1448,7 @@
             // 四川只显示分时段量价与最新5日分时段趋势，跳过其余汇总图表
             if (currentRegion !== 'sichuan') {
                 const dayMerged = mergedRecords.filter(r => r.date === selectedDate);
+                renderSichuanDA(selectedDate);
                 renderRegionScopeNote();
                 renderRegionSummary(selectedDate);
                 renderRegionTrends();
@@ -1340,7 +1561,8 @@
                     } else dateVal = String(dateVal);
                 } else dateVal = '';
                 newRow['日期'] = dateVal;
-                newRow['时刻'] = row['时刻'] || '';
+                // 时刻在入库这一步就裁到分钟：源数据是「00:15:00」，图上不该带秒
+                newRow['时刻'] = String(row['时刻'] || '').replace(/^(\d{1,2}:\d{2}).*$/, '$1');
                 for (let [oldKey, newKey] of Object.entries(mapping)) {
                     newRow[newKey] = row[oldKey] !== undefined ? row[oldKey] : 0;
                 }
@@ -1586,6 +1808,60 @@
             clearTimeout(el._timer);
             el._timer = setTimeout(() => el.classList.remove('show'), 3500);
         }
+
+        // ================================================================
+        // 4b. 返回顶部 + 左侧悬浮导航
+        // 返回顶部：滚动超过 400px 淡入（两个页签都有），点击平滑滚回顶部。
+        // 页面本身是 body 滚动（没有自定义滚动容器），所以监听 window 即可。
+        // ================================================================
+        const toTopBtn = document.getElementById('toTopBtn');
+        const toggleToTop = () => {
+            toTopBtn.classList.toggle('show', window.scrollY > 400);
+        };
+        window.addEventListener('scroll', toggleToTop, { passive: true });
+        toTopBtn.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        toggleToTop();      // 刷新后若停在下方（浏览器会恢复滚动位置），按钮要直接显示
+
+        const sideNavItems = Array.from(document.querySelectorAll('.side-nav-item'));
+
+        // 导航项已按页签分开（显隐交给 CSS 的 data-nav-tab），每一项都是当前页面上
+        // 真实存在的区块，所以这里只管滚动，不需要切页签。
+        function navJump(btn) {
+            const target = document.getElementById(btn.dataset.target);
+            if (!target) return;
+            const top = target.getBoundingClientRect().top + window.scrollY - 12;
+            window.scrollTo({ top, behavior: 'smooth' });
+        }
+
+        // 高亮当前视野内的区块。两种都要跳过：本页签不显示的导航项（按钮本身不可见）、
+        // 以及被页签隐藏的区块 —— 否则它们会顶掉真正该亮的那一项。
+        function syncNavActive() {
+            let hit = null;
+            sideNavItems.forEach(btn => {
+                if (btn.offsetParent === null) return;
+                const el = document.getElementById(btn.dataset.target);
+                if (!el || el.offsetParent === null) return;
+                const r = el.getBoundingClientRect();
+                if (r.top <= 140 && r.bottom > 140) hit = btn;
+            });
+            sideNavItems.forEach(btn => btn.classList.toggle('active', btn === hit));
+        }
+
+        sideNavItems.forEach(btn => btn.addEventListener('click', () => {
+            navJump(btn);
+            setTimeout(syncNavActive, 220);     // 滚到位之后再刷新高亮
+        }));
+        window.addEventListener('scroll', syncNavActive, { passive: true });
+        // 直接点顶部页签切换时，高亮也要跟着刷新
+        document.querySelectorAll('.tab-btn').forEach(btn =>
+            btn.addEventListener('click', () => setTimeout(syncNavActive, 120)));
+        // 图表是异步渲染出来的，页面高度和区块位置都会变：
+        // 只算一次会停在错误的项上，所以页面尺寸一变就重算。
+        if (window.ResizeObserver) new ResizeObserver(syncNavActive).observe(document.body);
+        setTimeout(syncNavActive, 400);
+        syncNavActive();
 
         // ================================================================
         // 5. 启动
