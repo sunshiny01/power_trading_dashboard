@@ -1,4 +1,4 @@
-name: Deploy to CloudBase Static Hosting
+name: Deploy to CloudBase
 
 on:
   push:
@@ -16,12 +16,28 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: 18
+          cache: npm
 
       - name: Install CloudBase CLI
         run: npm install -g @cloudbase/cli
 
-      - name: Deploy to CloudBase
+      - name: 校验密钥格式
+        env:
+          ID: ${{ secrets.TCB_SECRET_ID }}
         run: |
-          tcb login --apiKeyId ${{ secrets.TCB_SECRET_ID }} --apiKey ${{ secrets.TCB_SECRET_KEY }}
-          tcb hosting deploy ./ --envId ${{ secrets.TCB_ENV_ID }}
+          case "$ID" in
+            AKID*) echo "✅ SecretId 前缀正确" ;;
+            *) echo "❌ SecretId 前缀不是 AKID"; exit 1 ;;
+          esac
+
+      - name:  Deploy to CloudBase
+        env:
+          TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID }}
+          TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY }}
+        run: tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY"
+
+      - name: 部署静态托管
+        env:
+          TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+        run: tcb hosting deploy ./ -e "$TCB_ENV_ID"
