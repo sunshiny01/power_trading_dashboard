@@ -1456,8 +1456,43 @@
             }
         }
 
+        // 市场选项按「当前页签实际有没有这套数据」标注与启停：
+        // 四川接上日内集合后，日内 / 汇总（日前+日内）会自动可用；反之才置灰。
+        // 只在数据已加载时生效 —— 页面刚打开、数据还没到的时候不去动它，
+        // 免得一进来三个选项全是灰的。
+        function syncMarketOptions() {
+            const sel = document.getElementById('marketSelector');
+            const d = regionData[currentRegion];
+            if (!sel || !d || !d.loaded) return;
+            const hasDA = (d.da || []).length > 0;
+            const hasRT = (d.rt || []).length > 0;
+            for (const opt of sel.options) {
+                if (opt.value === '汇总') {
+                    opt.disabled = !(hasDA || hasRT);
+                    opt.textContent = hasDA && hasRT ? '汇总（日前+日内）' : (hasRT ? '汇总（日内）' : '汇总（日前）');
+                } else if (opt.value === '日前') {
+                    opt.disabled = !hasDA;
+                    opt.textContent = '日前';
+                } else if (opt.value === '日内') {
+                    opt.disabled = !hasRT;
+                    opt.textContent = '日内';
+                }
+            }
+            // 当前选中的那项刚好没数据，就退到有数据的项（优先汇总）
+            const cur = sel.options[sel.selectedIndex];
+            if (cur && cur.disabled && (hasDA || hasRT)) sel.value = '汇总';
+        }
+
+        // 在候选日期里找最接近 target 的一天：优先取不晚于 target 的最近一天；
+        // 全都不早于 target（比如往前查得太远）时才取最早的一天。
+        // 日期是 YYYY-MM-DD，字符串比较即等价于日期比较。
+        function nearestDate(dates, target) {
+            if (!dates || dates.length === 0) return target;
+            const notLater = dates.filter(d => d <= target);
+            return notLater.length ? notLater[notLater.length - 1] : dates[0];
+        }
+
         function applyMarketSelectionAndRefresh() {
-            const market = document.getElementById('marketSelector').value;
             const region = currentRegion;
             const dataObj = regionData[region];
             if (!dataObj || !dataObj.loaded) {
@@ -1466,14 +1501,14 @@
                 return;
             }
 
-            let fullData = null;
-            if (region === 'changzhou') {
-                if (market === '汇总') fullData = dataObj.all;
-                else if (market === '日前') fullData = dataObj.da;
-                else if (market === '日内') fullData = dataObj.rt;
-            } else {
-                fullData = dataObj.all;
-            }
+            // 选项的可用性可能把选中项退回去，所以 market 要在这一步之后再读
+            syncMarketOptions();
+            const market = document.getElementById('marketSelector').value;
+
+            // 长三角与四川现在都是「日前 / 日内 / 汇总」三套数据，口径一致，按市场选择器取
+            let fullData = dataObj.all;
+            if (market === '日前') fullData = dataObj.da;
+            else if (market === '日内') fullData = dataObj.rt;
 
             if (!fullData || fullData.length === 0) {
                 document.getElementById('globalStatus').textContent = '⚠️ 当前市场无数据';
@@ -1519,12 +1554,19 @@
             });
             dateSelector.disabled = false;
 
+            // 选中的日期在当前市场里没有时（例如日前有 10-10、日内只到 10-09），
+            // 退到最近的一天：优先往前找（数据通常落后于日历），实在没有更早的才用最早那天。
+            // 注意这里只改「当前显示的日期」，不去动 regionDates —— 那是用户自己选的日期，
+            // 切回日前时要能回到 10-10，不能被这次临时跳转覆盖掉。
             const savedDate = regionDates[region];
             if (savedDate && allDates.includes(savedDate)) {
                 currentDate = savedDate;
             } else {
-                currentDate = allDates[allDates.length - 1];
-                regionDates[region] = currentDate;
+                const want = savedDate || currentDate || allDates[allDates.length - 1];
+                currentDate = nearestDate(allDates, want);
+                if (currentDate !== want) {
+                    showToast(`该日期（${want}）没有「${market}」数据，已显示最近的一天 ${currentDate}`);
+                }
             }
             dateSelector.value = currentDate;
 
@@ -1632,26 +1674,10 @@
                 btn.classList.toggle('active', btn.dataset.region === region);
             });
 
-            const marketSel = document.getElementById('marketSelector');
-            if (region === 'sichuan') {
-                for (let opt of marketSel.options) {
-                    if (opt.value === '日内') {
-                        opt.disabled = true;
-                        opt.textContent = '日内（不可用）';
-                    } else {
-                        opt.disabled = false;
-                        opt.textContent = opt.value === '汇总' ? '汇总（日前）' : '日前';
-                    }
-                }
-                if (marketSel.value === '日内') marketSel.value = '日前';
-            } else {
-                for (let opt of marketSel.options) {
-                    opt.disabled = false;
-                    if (opt.value === '汇总') opt.textContent = '汇总（日前+日内）';
-                    else if (opt.value === '日前') opt.textContent = '日前';
-                    else if (opt.value === '日内') opt.textContent = '日内';
-                }
-            }
+            // 市场选项按「当前页签实际有没有这套数据」标注与启停。
+            // 之前这里是写死的：四川一律禁用「日内」、汇总写「汇总（日前）」——
+            // 那是四川还没接日内集合时的权宜做法，现在改成看数据说话。
+            syncMarketOptions();
 
             const dataObj = regionData[region];
             if (dataObj.loaded) {
@@ -1745,21 +1771,75 @@
                 });
         });
 
+        // 四川：日前（sichuan_spot）+ 日内（sichuan_spot_rt）→「汇总」。
+        // 口径与长三角的 mergeDA_RT 一致：电量相加、电价按电量加权；
+        // 某个时刻只在一侧出现时，另一侧按 0 计。
+        function combineSichuanDA_RT(daRows, rtRows) {
+            const energyCols = [
+                '购方-四川主网出清电量', '售方-四川主网出清电量',
+                '购方-四川攀西出清电量', '售方-四川攀西出清电量'
+            ];
+            const keyOf = r => r['日期'] + '|' + r['时刻'];
+            const acc = new Map();
+
+            const feed = rows => (rows || []).forEach(r => {
+                const k = keyOf(r);
+                if (!acc.has(k)) {
+                    const row = { '日期': r['日期'], '时刻': r['时刻'], _fee: {} };
+                    energyCols.forEach(c => {
+                        row[c] = 0;
+                        row[c.replace('电量', '电价')] = 0;
+                        row._fee[c] = 0;
+                    });
+                    acc.set(k, row);
+                }
+                const a = acc.get(k);
+                energyCols.forEach(c => {
+                    const e = Number(r[c]) || 0;
+                    const p = Number(r[c.replace('电量', '电价')]) || 0;
+                    a[c] += e;
+                    a._fee[c] += e * p;          // 先累加「电量 × 电价」，最后再除以总电量
+                });
+            });
+            feed(daRows);
+            feed(rtRows);
+
+            return [...acc.values()].map(a => {
+                energyCols.forEach(c => {
+                    a[c.replace('电量', '电价')] = a[c] > 0 ? a._fee[c] / a[c] : 0;
+                });
+                delete a._fee;
+                return a;
+            }).sort((x, y) =>
+                String(x['日期']).localeCompare(String(y['日期'])) ||
+                String(x['时刻']).localeCompare(String(y['时刻'])));
+        }
+
         document.getElementById('loadDefaultSichuan').addEventListener('click', function() {
             document.getElementById('statusSichuan').textContent = '⏳ 加载中...';
             ensureTcbLogin()
-                .then(() => fetchAll('sichuan_spot'))
-                .then(json => {
-                    if (json.length === 0) throw new Error('数据为空');
-                    const converted = convertSichuanColumns(json);
-                    regionData.sichuan.all = converted;
-                    regionData.sichuan.da = converted;
-                    regionData.sichuan.rt = [];
+                .then(() => Promise.all([
+                    fetchAll('sichuan_spot'),                                   // 日前
+                    // 日内集合若还没建 / 为空，不该连累日前一起加载失败，所以单独兜住
+                    fetchAll('sichuan_spot_rt').catch(err => {
+                        console.warn('四川日内数据（sichuan_spot_rt）加载失败，本次仅用日前:', err);
+                        return [];
+                    })
+                ]))
+                .then(([jsonDA, jsonRT]) => {
+                    if (jsonDA.length === 0 && jsonRT.length === 0) throw new Error('数据为空');
+                    const da = convertSichuanColumns(jsonDA);
+                    const rt = convertSichuanColumns(jsonRT);
+                    regionData.sichuan.all = combineSichuanDA_RT(da, rt);
+                    regionData.sichuan.da = da;
+                    regionData.sichuan.rt = rt;
                     regionData.sichuan.loaded = true;
+                    const hasRT = rt.length > 0;
                     document.getElementById('fileNameSichuan').textContent = '已加载';
-                    document.getElementById('statusSichuan').textContent = '✅ 已加载';
+                    document.getElementById('statusSichuan').textContent =
+                        hasRT ? '✅ 已加载' : '✅ 已加载（仅日前）';
                     if (currentRegion === 'sichuan') applyMarketSelectionAndRefresh();
-                    showToast('✅ 四川数据加载成功');
+                    showToast(hasRT ? '✅ 四川数据加载成功' : '✅ 四川数据加载成功（仅日前）');
                 })
                 .catch(err => {
                     document.getElementById('statusSichuan').textContent = '⚠️ 加载失败';
