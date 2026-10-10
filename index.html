@@ -280,6 +280,50 @@
         @media (max-width: 900px) {
             .to-top { right: 14px; bottom: 14px; width: 42px; height: 42px; font-size: 18px; }
         }
+
+        /* ===== 手机（窄屏）：把各处留白和字号整体降一档 =====
+           之前只到 900px 那一档（平板），手机上 20px 的外边距 + 卡片 20px 内边距
+           会吃掉近三成宽度，5 张 KPI 卡也是竖着一长条。 */
+        @media (max-width: 640px) {
+            body { padding: 10px; }
+            .header { padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; }
+            .header-left { gap: 12px; }
+            .header-left h1 { font-size: 19px; }
+            .tab-btn { padding: 7px 14px; font-size: 14px; }
+            .ext-btn { padding: 8px 14px; font-size: 14px; }
+            .filter-bar { padding: 10px 14px; gap: 12px; border-radius: 12px; }
+            .filter-bar label { font-size: 13px; }
+            .filter-bar select { min-width: 0; flex: 1; padding: 6px 8px; font-size: 13px; }
+            .data-source-area { padding: 10px 12px; gap: 8px; border-radius: 10px; margin-bottom: 14px; }
+            /* 这一行元素多（标签/文件框/文件名/按钮/状态），必须让它能换行，
+               否则整行会超出屏幕、右侧按钮被切掉 */
+            .data-source-item { width: 100%; gap: 6px 8px; }
+            .data-source-item input[type="file"] { flex: 1 1 110px; min-width: 0; max-width: 100%; font-size: 12px; }
+            .data-source-item .file-name { max-width: 80px; }
+            .status-msg { font-size: 12.5px; margin-left: 0; }
+            .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+            .kpi-card { padding: 12px; border-radius: 12px; border-left-width: 3px; }
+            .kpi-card .label { font-size: 11.5px; }
+            .kpi-card .value { font-size: 20px; word-break: break-all; }
+            .kpi-card .sub { font-size: 11.5px; }
+            .kpi-card .value .delta { font-size: 11px; padding: 1px 6px; margin-left: 4px; vertical-align: 2px; }
+            .region-card { padding: 14px 12px; border-radius: 12px; margin-bottom: 16px; }
+            .region-title { font-size: 17px; }
+            .region-note, .block-note { font-size: 12px; }
+            .chart-section { padding: 14px 10px 8px; border-radius: 12px; margin-bottom: 16px; }
+            .chart-section h2 { font-size: 15px; margin-bottom: 8px; }
+            .block-title { font-size: 14.5px; }
+            .badge { font-size: 11.5px; padding: 2px 8px; margin-left: 6px; }
+            .chart-box { min-height: 250px; }
+            .chart-box-sm { min-height: 230px; }
+            .chart-box-xs { min-height: 180px; }
+            .table-wrap table { font-size: 12.5px; }
+            .table-wrap th, .table-wrap td { padding: 7px 8px; }
+            .table-wrap td.indent { padding-left: 18px; }
+            .table-wrap th { white-space: nowrap; }
+            .btn-download { width: 100%; padding: 10px; }
+            .to-top { right: 12px; bottom: 12px; width: 40px; height: 40px; font-size: 17px; }
+        }
     </style>
 </head>
 <body>
@@ -664,8 +708,16 @@
         // 这样「分时段量价」上定的规则，全部图表自动一致，不必逐个渲染函数去改。
         // ================================================================
         const plotlyReactRaw = Plotly.react.bind(Plotly);
+
+        // 每张图最近一次传入的「原始」layout。窄屏适配后的值都从它重算，
+        // 所以反复渲染不会越缩越小；转屏重画时也用它，才能既收得回去也放得回来。
+        const baseLayouts = new WeakMap();
+        const isNarrowScreen = () => window.innerWidth <= 640;
+
         Plotly.react = function (el, data, layout, config) {
-            const lay = Object.assign({}, layout || {});
+            const raw = Object.assign({}, layout || {});
+            baseLayouts.set(el, raw);
+            const lay = Object.assign({}, raw);
             // 数值可能落在 y（竖着画），也可能落在 x（净买入那张横向条形图就是），两边都要看
             const nums = arr => Array.isArray(arr) && arr.some(v => typeof v === 'number' && isFinite(v) && v !== 0);
             const hasData = (data || []).some(tr => nums(tr.y) || nums(tr.x));
@@ -677,8 +729,42 @@
                     x: 0.5, y: 0.5, xref: 'paper', yref: 'paper',
                     font: { size: 15, color: '#94a3b8' }
                 }]);
+
+            // 手机适配：绘图区压矮、边距收窄、字号降一档。
+            // 放在这一层，所有图表一起生效，不必逐个渲染函数去改。
+            if (isNarrowScreen()) {
+                if (lay.height) lay.height = Math.max(240, Math.round(lay.height * 0.78));
+                const m = raw.margin || {};
+                const cap = (v, d, max) => Math.min(v === undefined ? d : v, max);
+                lay.margin = {
+                    l: cap(m.l, 80, 44), r: cap(m.r, 80, 46),
+                    t: cap(m.t, 80, 58), b: cap(m.b, 80, 76)
+                };
+                lay.font = Object.assign({}, raw.font, { size: 10 });
+                if (raw.legend) lay.legend = Object.assign({}, raw.legend, { font: { size: 9 } });
+                // 点很多的图（分时段量价有 96 个时刻）刻度改成竖排，横着排会挤成一团
+                const dense = (data || []).some(tr => Array.isArray(tr.x) && tr.x.length > 24);
+                if (dense && raw.xaxis) {
+                    lay.xaxis = Object.assign({}, raw.xaxis, { tickangle: -90, tickfont: { size: 9 } });
+                }
+            }
+
             return plotlyReactRaw(el, data, lay, config);
         };
+
+        // 转屏 / 改窗口大小后，用「原始 layout」重画一次：
+        // 上面的适配是渲染时按窗口宽度算的，不重画就还按旧尺寸显示
+        // （Plotly 自己只会跟着改宽度，不会改高度和边距）。
+        let resizeRedrawTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeRedrawTimer);
+            resizeRedrawTimer = setTimeout(() => {
+                document.querySelectorAll('.js-plotly-plot').forEach(el => {
+                    const base = baseLayouts.get(el);
+                    if (el.data && base) Plotly.react(el, el.data, base);
+                });
+            }, 250);
+        });
 
 
         function makeDualAxisFig(times, buyE, sellE, buyP, sellP, region, date) {
