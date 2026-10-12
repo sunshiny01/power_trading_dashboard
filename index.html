@@ -696,9 +696,12 @@
             align: 'left'
         });
 
-        // 统一悬停文本：名称 → 坐标 → 加粗数值 + 单位
+        // 统一悬停文本：给「近 N 天趋势 / 各区域量价」这类图用。
+        // 这些图都是 hovermode: 'x unified'（一个坐标一次列出全部系列），
+        // 行名取自 <extra>，正文只留「加粗数值 + 单位」——坐标由浮框标题统一给出。
+        // 所以名称和 %{x} 都不再塞进正文，否则会跟行名、浮框标题重复一遍。
         const tplNum = (head, fmt, unit) =>
-            head + '<br>%{x}<br><b>%{y:,' + fmt + '}</b> ' + unit + '<extra></extra>';
+            '<b>%{y:,' + fmt + '}</b> ' + unit + '<extra>' + head + '</extra>';
 
         // ================================================================
         // 统一空状态：把 Plotly.react 包一层 —— 任何一张图，只要它所有系列的值里
@@ -729,6 +732,14 @@
                     x: 0.5, y: 0.5, xref: 'paper', yref: 'paper',
                     font: { size: 15, color: '#94a3b8' }
                 }]);
+
+            // 所有图统一「一个坐标一次列出全部系列」：趋势图上一个日期把量价各系列一次看全，
+            // 各区域量价对比上一个区域把购/售方均价一次看全。行名由各 trace 的 <extra> 给出。
+            // 一个框里可能列 4~10 行，所以悬浮字号统一压到 13。
+            lay.hovermode = 'x unified';
+            lay.hoverlabel = Object.assign({}, lay.hoverlabel, {
+                font: Object.assign({}, (lay.hoverlabel && lay.hoverlabel.font) || {}, { size: 13 })
+            });
 
             // 手机适配：绘图区压矮、边距收窄、字号降一档。
             // 放在这一层，所有图表一起生效，不必逐个渲染函数去改。
@@ -1067,9 +1078,19 @@
                 if (!group.chartId) return;
                 const latest = buildGroupRecords(group).slice(-TREND_DAYS_REGION);
                 const x = latest.map(r => r.date);
+                // 与「各区域量价对比」同一套做法：
+                // 柱 = 电量数值直接标在柱顶（0 不标）；悬停时用 hoverinfo:'skip' 跳过柱子，
+                // 浮框里就只留该日期的购方/售方均价两条线 —— 量看柱子上的字，价看悬浮。
+                const eTop = Math.max(1, ...latest.map(r => Math.max(r.buyEnergy, r.sellEnergy)));
+                const bar = (vals, name, color) => ({
+                    x: x, y: vals, name: name, type: 'bar', marker: { color: color }, yaxis: 'y',
+                    text: vals.map(v => v > 0 ? v.toFixed(0) : ''),
+                    textposition: 'outside', textfont: { size: 11, color: color },
+                    cliponaxis: false, hoverinfo: 'skip'
+                });
                 const traces = [
-                    { x: x, y: latest.map(r => r.buyEnergy), name: '购方总量', type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y', hovertemplate: tplNum('购方总量', '.1f', 'MWh') },
-                    { x: x, y: latest.map(r => r.sellEnergy), name: '售方总量', type: 'bar', marker: { color: '#d62728' }, yaxis: 'y', hovertemplate: tplNum('售方总量', '.1f', 'MWh') },
+                    bar(latest.map(r => r.buyEnergy), '购方总量', '#1f77b4'),
+                    bar(latest.map(r => r.sellEnergy), '售方总量', '#d62728'),
                     { x: x, y: latest.map(r => r.buyPrice), name: '购方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4', width: 4 }, marker: { color: '#1f77b4' }, yaxis: 'y2', hovertemplate: tplNum('购方均价', '.2f', '元/MWh') },
                     { x: x, y: latest.map(r => r.sellPrice), name: '售方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728', width: 4 }, marker: { color: '#d62728' }, yaxis: 'y2', hovertemplate: tplNum('售方均价', '.2f', '元/MWh') }
                 ];
@@ -1077,7 +1098,8 @@
                     title: { text: group.title + ' · 近' + TREND_DAYS_REGION + '天量价趋势', yref: 'container', y: 0.95, yanchor: 'top', x: 0.5, xanchor: 'center', font: { size: 15 } },
                     barmode: 'group',
                     xaxis: { title: '日期', type: 'category', tickangle: 0, tickfont: { size: 11 } },
-                    yaxis: { title: '电量 (MWh)', rangemode: 'tozero', side: 'left' },
+                    // 上界留 15% 余量，免得柱顶的数字被裁掉（仍是 0 起，与右轴 0 点对齐）
+                    yaxis: { title: '电量 (MWh)', range: [0, eTop * 1.15], side: 'left' },
                     yaxis2: { title: '均价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
                     legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
                     hoverlabel: hoverLabel(),
@@ -1318,16 +1340,33 @@
             const labels = rows.map(r => r.label);
 
             // 左图：量（柱，左轴）+ 价（折线，右轴）
+            // 柱：电量数值直接标在柱顶（0 不标），一眼就读到量；
+            //     悬停时用 hoverinfo:'skip' 跳过柱子，浮框里就只剩该区域的购方/售方均价两条。
+            // 折线：不带静态标签，数值靠上面的统一悬停查看。
+            const eTop = Math.max(1, ...rows.map(r => Math.max(r.buyE, r.sellE)));
             Plotly.react(elStat, [
-                { x: labels, y: rows.map(r => r.buyE), name: '购方总量', type: 'bar', marker: { color: '#1f77b4' }, yaxis: 'y', hovertemplate: tplNum('购方总量', '.1f', 'MWh') },
-                { x: labels, y: rows.map(r => r.sellE), name: '售方总量', type: 'bar', marker: { color: '#d62728' }, yaxis: 'y', hovertemplate: tplNum('售方总量', '.1f', 'MWh') },
+                {
+                    x: labels, y: rows.map(r => r.buyE), name: '购方总量', type: 'bar',
+                    marker: { color: '#1f77b4' }, yaxis: 'y',
+                    text: rows.map(r => r.buyE > 0 ? r.buyE.toFixed(0) : ''),
+                    textposition: 'outside', textfont: { size: 11, color: '#1f77b4' },
+                    cliponaxis: false, hoverinfo: 'skip'
+                },
+                {
+                    x: labels, y: rows.map(r => r.sellE), name: '售方总量', type: 'bar',
+                    marker: { color: '#d62728' }, yaxis: 'y',
+                    text: rows.map(r => r.sellE > 0 ? r.sellE.toFixed(0) : ''),
+                    textposition: 'outside', textfont: { size: 11, color: '#d62728' },
+                    cliponaxis: false, hoverinfo: 'skip'
+                },
                 { x: labels, y: rows.map(r => r.buyP), name: '购方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#1f77b4', width: 4 }, marker: { color: '#1f77b4' }, yaxis: 'y2', hovertemplate: tplNum('购方均价', '.2f', '元/MWh') },
                 { x: labels, y: rows.map(r => r.sellP), name: '售方均价', type: 'scatter', mode: 'lines+markers', line: { color: '#d62728', width: 4 }, marker: { color: '#d62728' }, yaxis: 'y2', hovertemplate: tplNum('售方均价', '.2f', '元/MWh') }
             ], {
                 title: Object.assign({ text: '各区域量价对比' }, titleStyle),
                 barmode: 'group',
                 xaxis: { title: '区域', type: 'category', tickangle: 0, tickfont: { size: 11 } },
-                yaxis: { title: '电量 (MWh)', rangemode: 'tozero', side: 'left' },
+                // 上界留 15% 余量，免得柱顶的数字被裁掉（仍是 0 起，与右轴 0 点对齐）
+                yaxis: { title: '电量 (MWh)', range: [0, eTop * 1.15], side: 'left' },
                 yaxis2: { title: '均价 (元/MWh)', rangemode: 'tozero', overlaying: 'y', side: 'right' },
                 legend: { orientation: 'h', y: 1.0, yanchor: 'bottom', x: 0.5, xanchor: 'center', font: { size: 11 } },
                 hoverlabel: hoverLabel(),
