@@ -249,31 +249,48 @@
         }
 
         /* ====== 左侧悬浮导航：纯浮层，不占布局（正文不被推走）；
+           贴在屏幕最左边缘，且**只能上下拖动**（横向恒定 left:0）；
            默认只露一个图标，悬停展开文字 ====== */
         .side-nav {
-            position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 900;
-            display: none; flex-direction: column; gap: 4px;
-            background: rgba(255, 255, 255, 0.96);
-            border: 1px solid #e2e8f0; border-radius: 14px;
-            padding: 6px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+            position: fixed; left: 0; top: 6px; z-index: 900;
+            /* 上面的 top 是默认位置（左上角）；脚本加载后会换成具体 px，可上下拖 */
+            display: none; flex-direction: column; gap: 3px;
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid #e2e8f0;
+            border-left: none;              /* 贴边那一侧不要描边 */
+            border-radius: 0 12px 12px 0;   /* 只有右侧圆角，像贴在屏幕边上的标签 */
+            padding: 5px 5px 5px 4px;
+            box-shadow: 2px 0 14px rgba(15, 23, 42, 0.10);
             -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+            /* 触屏上必须禁掉浏览器自身的滚动，否则按下拖动会变成滚页面 */
+            touch-action: none; cursor: grab; user-select: none;
+            transition: box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+        .side-nav.dragging {
+            cursor: grabbing; opacity: 0.95;
+            box-shadow: 4px 0 22px rgba(15, 23, 42, 0.22);
+            transition: none;               /* 拖动时不要过渡，才跟手 */
         }
         .side-nav-item {
-            display: none; align-items: center; justify-content: center; gap: 8px;
-            width: 46px; height: 40px; padding: 0;
-            border: none; border-radius: 10px;
+            display: none; align-items: center; justify-content: center; gap: 7px;
+            width: 38px; height: 34px; padding: 0;
+            border: none; border-radius: 9px;
             background: transparent; color: #475569;
-            font-size: 17px; font-weight: 600; font-family: inherit;
-            white-space: nowrap; overflow: hidden; cursor: pointer;
-            transition: background 0.2s ease, color 0.2s ease;
+            font-size: 15px; font-weight: 600; font-family: inherit;
+            white-space: nowrap; overflow: hidden; cursor: inherit;
+            transition: background 0.2s ease, color 0.2s ease,
+                        width 0.18s ease, padding 0.18s ease;
         }
         /* 导航项按页签分开显示：长三角页签列汇总/各区域，四川页签列四川自己的分区。
            每一项在当前页面上都真实存在，不会点了却跳到另一个页签去。 */
         body:not(.sichuan-tab) .side-nav-item[data-nav-tab="changzhou"] { display: flex; }
         body.sichuan-tab .side-nav-item[data-nav-tab="sichuan"] { display: flex; }
-        .side-nav-text { display: none; font-size: 13px; }
-        .side-nav:hover .side-nav-item { width: auto; padding: 0 12px; justify-content: flex-start; }
+        .side-nav-text { display: none; font-size: 12.5px; }
+        .side-nav:hover .side-nav-item { width: auto; padding: 0 10px; justify-content: flex-start; }
         .side-nav:hover .side-nav-text { display: inline; }
+        /* 拖动过程中不展开文字，免得一边拖一边变宽 */
+        .side-nav.dragging .side-nav-item { width: 38px; padding: 0; justify-content: center; }
+        .side-nav.dragging .side-nav-text { display: none; }
         .side-nav-item:hover { background: #eff6ff; color: #2563eb; }
         .side-nav-item.active { background: #3b82f6; color: #fff; }
         @media (min-width: 1100px) { .side-nav { display: flex; } }
@@ -285,22 +302,34 @@
            之前只到 900px 那一档（平板），手机上 20px 的外边距 + 卡片 20px 内边距
            会吃掉近三成宽度，5 张 KPI 卡也是竖着一长条。 */
         @media (max-width: 640px) {
+            /* 版式跟电脑保持一致：左右并排、元素自然换行，只把留白和字号收小。
+               下面这些 flex-direction / width 是对 900px 那档「竖排」的覆盖 ——
+               竖排会把跳转按钮和筛选框拉成一整行一整行，反而更占地方。 */
             body { padding: 10px; }
-            .header { padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; }
-            .header-left { gap: 12px; }
-            .header-left h1 { font-size: 19px; }
-            .tab-btn { padding: 7px 14px; font-size: 14px; }
-            .ext-btn { padding: 8px 14px; font-size: 14px; }
-            .filter-bar { padding: 10px 14px; gap: 12px; border-radius: 12px; }
-            .filter-bar label { font-size: 13px; }
-            .filter-bar select { min-width: 0; flex: 1; padding: 6px 8px; font-size: 13px; }
+            .header {
+                flex-direction: row; align-items: center; justify-content: space-between;
+                padding: 12px 14px; border-radius: 12px; margin-bottom: 10px; gap: 10px;
+            }
+            .header-left { flex-direction: row; align-items: center; gap: 10px; }
+            .header-left h1 { font-size: 18px; }
+            .tab-btn { padding: 6px 12px; font-size: 13px; }
+            .header-right { flex-direction: row; width: auto; gap: 8px; }
+            .ext-btn { width: auto; padding: 7px 12px; font-size: 12.5px; }
+            .ext-btn .icon { font-size: 14px; }
+            .filter-bar {
+                flex-direction: row; align-items: center; gap: 10px 14px;
+                padding: 10px 14px; border-radius: 12px;
+            }
+            .filter-bar label { font-size: 12.5px; gap: 6px; }
+            .filter-bar select { min-width: 0; width: auto; flex: none; padding: 5px 8px; font-size: 12.5px; }
             .data-source-area { padding: 10px 12px; gap: 8px; border-radius: 10px; margin-bottom: 14px; }
-            /* 这一行元素多（标签/文件框/文件名/按钮/状态），必须让它能换行，
-               否则整行会超出屏幕、右侧按钮被切掉 */
-            .data-source-item { width: 100%; gap: 6px 8px; }
-            .data-source-item input[type="file"] { flex: 1 1 110px; min-width: 0; max-width: 100%; font-size: 12px; }
-            .data-source-item .file-name { max-width: 80px; }
-            .status-msg { font-size: 12.5px; margin-left: 0; }
+            /* 一行里塞 5 个元素（标签/文件框/文件名/按钮/状态），每段都收紧才排得下 */
+            .data-source-item { width: 100%; justify-content: flex-start; gap: 6px; }
+            .data-source-item .label { font-size: 12.5px; }
+            .data-source-item input[type="file"] { flex: none; width: 92px; max-width: 92px; font-size: 11px; }
+            .data-source-item .file-name { max-width: 54px; font-size: 11.5px; }
+            .data-source-item .btn-sm { flex: none; padding: 3px 7px; font-size: 11.5px; }
+            .data-source-area .status-msg { font-size: 11.5px; margin-left: 0; }
             .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
             .kpi-card { padding: 12px; border-radius: 12px; border-left-width: 3px; }
             .kpi-card .label { font-size: 11.5px; }
@@ -321,7 +350,7 @@
             .table-wrap th, .table-wrap td { padding: 7px 8px; }
             .table-wrap td.indent { padding-left: 18px; }
             .table-wrap th { white-space: nowrap; }
-            .btn-download { width: 100%; padding: 10px; }
+            .btn-download { padding: 8px 18px; font-size: 13px; }
             .to-top { right: 12px; bottom: 12px; width: 40px; height: 40px; font-size: 17px; }
         }
     </style>
@@ -1524,6 +1553,10 @@
             document.querySelectorAll('.sichuan-only').forEach(el => {
                 el.style.display = isSichuan ? '' : 'none';
             });
+
+            // 导航项是跟着页签走的（长三角 4 项 ↔ 四川 5 项），项数一变导航高度也变，
+            // 顺手校正一下它的位置。挂在这里是因为本函数是切换页签的唯一落点。
+            fitNavToViewport();
         }
 
         function renderAllCharts(selectedDate) {
@@ -2029,7 +2062,60 @@
         });
         toggleToTop();      // 刷新后若停在下方（浏览器会恢复滚动位置），按钮要直接显示
 
+        const sideNav = document.getElementById('sideNav');
         const sideNavItems = Array.from(document.querySelectorAll('.side-nav-item'));
+
+        // ---- 拖动导航：只能上下，横向恒定 left:0（贴屏幕左边缘） ----
+        // 位置不做记忆，刷新后由 resetNavPos() 回到默认位置（左上角）。
+        const NAV_EDGE = 6;         // 上下距屏幕边缘的最小留白，也等于默认位置的 top
+        let navDragged = false;     // 是否被用户拖过：拖过之后窗口变化只夹取，不再拉回左上角
+        let navSuppressClick = false;
+        let navDragging = false, navMoved = false, navStartY = 0, navFromTop = 0;
+
+        function setNavTop(top) {
+            const h = sideNav.offsetHeight;
+            if (!h) return;         // 窄屏下导航是 display:none，量不到高度就别动
+            const max = Math.max(NAV_EDGE, window.innerHeight - h - NAV_EDGE);
+            sideNav.style.top = Math.round(Math.min(Math.max(top, NAV_EDGE), max)) + 'px';
+        }
+        // 默认位置：左上角（横向本来就贴左边，纵向取夹取的下限，也就是最靠上的合法位置）
+        function resetNavPos() {
+            setNavTop(NAV_EDGE);
+        }
+
+        sideNav.addEventListener('pointerdown', e => {
+            if (e.button) return;   // 只认左键
+            navDragging = true; navMoved = false;
+            navStartY = e.clientY;
+            navFromTop = sideNav.getBoundingClientRect().top;
+            try { sideNav.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+        });
+
+        sideNav.addEventListener('pointermove', e => {
+            if (!navDragging) return;
+            const dy = e.clientY - navStartY;           // 只取纵向位移，横向完全忽略
+            if (!navMoved && Math.abs(dy) > 3) {        // 动超过 3px 才算真在拖，单纯按一下不算
+                navMoved = true; navDragged = true;
+                sideNav.classList.add('dragging');
+            }
+            if (!navMoved) return;
+            setNavTop(navFromTop + dy);
+            e.preventDefault();
+        });
+
+        function endNavDrag(e) {
+            if (!navDragging) return;
+            navDragging = false;
+            sideNav.classList.remove('dragging');
+            try { sideNav.releasePointerCapture && sideNav.releasePointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+            if (navMoved) {
+                // 抬起瞬间浏览器还会补发一次 click，吃掉它，免得拖完又跳走
+                navSuppressClick = true;
+                setTimeout(() => { navSuppressClick = false; }, 50);
+            }
+        }
+        sideNav.addEventListener('pointerup', endNavDrag);
+        sideNav.addEventListener('pointercancel', endNavDrag);
 
         // 导航项已按页签分开（显隐交给 CSS 的 data-nav-tab），每一项都是当前页面上
         // 真实存在的区块，所以这里只管滚动，不需要切页签。
@@ -2055,11 +2141,12 @@
         }
 
         sideNavItems.forEach(btn => btn.addEventListener('click', () => {
+            if (navSuppressClick) return;       // 刚拖完补发的那次 click 不算点击
             navJump(btn);
             setTimeout(syncNavActive, 220);     // 滚到位之后再刷新高亮
         }));
         window.addEventListener('scroll', syncNavActive, { passive: true });
-        // 直接点顶部页签切换时，高亮也要跟着刷新
+        // 直接点顶部页签切换时，高亮也要跟着刷新（位置校正由 fitNavToViewport 负责）
         document.querySelectorAll('.tab-btn').forEach(btn =>
             btn.addEventListener('click', () => setTimeout(syncNavActive, 120)));
         // 图表是异步渲染出来的，页面高度和区块位置都会变：
@@ -2067,6 +2154,26 @@
         if (window.ResizeObserver) new ResizeObserver(syncNavActive).observe(document.body);
         setTimeout(syncNavActive, 400);
         syncNavActive();
+
+        // 窗口尺寸变化：拖过的只做夹取（别露到屏幕外），没拖过的回到左上角。
+        // 窄屏（<1100px）导航是隐藏的，setNavTop 会直接跳过，宽屏变回来时这里再摆正一次。
+        window.addEventListener('resize', () => {
+            navDragged ? setNavTop(parseFloat(sideNav.style.top) || 0) : resetNavPos();
+        });
+
+        // 页签切换会改变导航项数（长三角 4 项 ↔ 四川 5 项），导航高度随之变化：
+        //   没拖过的 → 重新回到左上角；
+        //   拖过的   → 夹回视口内，否则项数变多、导航变高后，停在靠下会被屏幕底边切掉半截。
+        // 由 updateRegionVisibility() 调用 —— 它是切换页签的唯一落点。
+        // navReady 用 var：它在脚本跑完前是 undefined，这样万一被提前调用也不会踩 TDZ。
+        var navReady = false;
+        function fitNavToViewport() {
+            if (!navReady) return;
+            navDragged ? setNavTop(parseFloat(sideNav.style.top) || 0) : resetNavPos();
+        }
+
+        resetNavPos();      // 初始位置：左上角（位置不记忆，刷新即回到这里）
+        navReady = true;
 
         // ================================================================
         // 5. 启动
