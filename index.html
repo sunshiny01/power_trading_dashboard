@@ -72,6 +72,15 @@
             background: #0284c7;
             box-shadow: 0 2px 8px rgba(14, 165, 233, 0.45);
         }
+        /* 现货电价看板按钮：跟前两个拉开色差（紫 / 蓝 / 红），红用 #c0392b → 悬停提亮 #e8674f */
+        .ext-btn.spot-btn {
+            background: #c0392b;
+            box-shadow: 0 1px 4px rgba(192, 57, 43, 0.3);
+        }
+        .ext-btn.spot-btn:hover {
+            background: #e8674f;
+            box-shadow: 0 2px 8px rgba(192, 57, 43, 0.45);
+        }
 
         .filter-bar {
             background: #ffffff; padding: 12px 28px; border-radius: 16px;
@@ -375,6 +384,12 @@
                    href="https://liyanage-yy.github.io/shuiqing-dashboard/"
                    target="_blank" rel="noopener noreferrer">
                     <span class="icon">💧</span> 水电站水情蓄能
+                </a>
+                <!-- ====== 新增：现货电价看板跳转按钮 ====== -->
+                <a class="ext-btn spot-btn" id="gotoSpotPriceBtn"
+                   href="https://liyanage-yy.github.io/spot-price-dashboard/"
+                   target="_blank" rel="noopener noreferrer">
+                    <span class="icon">⚡</span> 现货电价看板
                 </a>
             </div>
         </div>
@@ -2088,7 +2103,7 @@
             navDragging = true; navMoved = false;
             navStartY = e.clientY;
             navFromTop = sideNav.getBoundingClientRect().top;
-            try { sideNav.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+            // 注意：这里**不能**捕获指针，见下面 pointermove 里的说明。
         });
 
         sideNav.addEventListener('pointermove', e => {
@@ -2097,6 +2112,10 @@
             if (!navMoved && Math.abs(dy) > 3) {        // 动超过 3px 才算真在拖，单纯按一下不算
                 navMoved = true; navDragged = true;
                 sideNav.classList.add('dragging');
+                // 确认是在拖动之后才捕获指针：捕获会把后续 mouse / click 事件重新定向到导航容器，
+                // 若在 pointerdown 就捕获，普通点击的 click 会被改派到容器上、按钮自己收不到，
+                // 表现就是「导航栏点了没反应」。此刻指针还在导航内，捕获一定能成功。
+                try { sideNav.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
             }
             if (!navMoved) return;
             setNavTop(navFromTop + dy);
@@ -2140,11 +2159,20 @@
             sideNavItems.forEach(btn => btn.classList.toggle('active', btn === hit));
         }
 
-        sideNavItems.forEach(btn => btn.addEventListener('click', () => {
+        // 导航项点击：用事件委托绑在导航上，比逐项绑定更耐折腾 ——
+        // 拖动时调用了 setPointerCapture，捕获期间 click 有可能被改派到导航容器本身，
+        // 那时 e.target 不是按钮，就按坐标反查一次，保证点击依然生效。
+        sideNav.addEventListener('click', e => {
             if (navSuppressClick) return;       // 刚拖完补发的那次 click 不算点击
+            let btn = e.target && e.target.closest ? e.target.closest('.side-nav-item') : null;
+            if (!btn) {
+                const under = document.elementFromPoint(e.clientX, e.clientY);
+                btn = under && under.closest ? under.closest('.side-nav-item') : null;
+            }
+            if (!btn) return;
             navJump(btn);
             setTimeout(syncNavActive, 220);     // 滚到位之后再刷新高亮
-        }));
+        });
         window.addEventListener('scroll', syncNavActive, { passive: true });
         // 直接点顶部页签切换时，高亮也要跟着刷新（位置校正由 fitNavToViewport 负责）
         document.querySelectorAll('.tab-btn').forEach(btn =>
